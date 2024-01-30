@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Date</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center">OVRO LWA daily spectrum</h1>
+        <div class="row justify-content-center">
+            <div class="col-md-6 text-center">
+                <select id="dateSelector" onchange="dateSelected()">
+                    <!-- Options will be added here by JavaScript -->
+                </select>
+                
+                <input type="date" id="datePicker">
+                
+                <button onclick="fetchImage()">Show Images</button>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        function fetchImage() {
+            var date = document.getElementById('datePicker').value;
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "/get-image", true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    var imageUrls = response.image_urls;
+                    if (imageUrls.length === 0) {
+                        displayNoDataMessage();
+                    } else {
+                        updateImageDisplay(imageUrls);
+                    }
+                }
+            };
+            xhr.send('date=' + date);
+        }
+        function displayNoDataMessage() {
+        var dailyImageSection = document.getElementById('dailyImageSection');
+        var imageGallery = document.getElementById('imageGallery');
+
+        dailyImageSection.innerHTML = '<h2>Daily Image</h2><p> ... No data this day</p>';
+        imageGallery.innerHTML = '<p> ... No data this day</p>';
+    }
+
+    function updateImageDisplay(imageUrls) {
+        var dailyImageSection = document.getElementById('dailyImageSection');
+        var imageGallery = document.getElementById('imageGallery');
+
+        // Clear existing content
+        dailyImageSection.innerHTML = '<h2>Daily Image</h2>';
+        imageGallery.innerHTML = '';
+
+        // Set the daily image if available
+        if (imageUrls.length > 0) {
+            var dailyImg = new Image();
+            dailyImg.src = imageUrls[0];
+            dailyImg.classList.add('gallery-image');
+            dailyImg.onclick = function() {
+                window.open(imageUrls[0], '_blank');
+            };
+            dailyImageSection.appendChild(dailyImg);
+        }
+
+        // Set the gallery images
+        for (var i = 1; i < imageUrls.length; i++) {
+            var img = new Image();
+            img.src = imageUrls[i];
+            img.classList.add('gallery-image', 'col-6', 'col-md-4', 'col-lg-3');
+            // Using a closure to ensure the correct URL is used
+            (function(url) {
+                img.onclick = function() {
+                    window.open(url, '_blank');
+                };
+            })(imageUrls[i]);
+            imageGallery.appendChild(img);
+        }
+    }
+        
+
+        function fetchAvailableDates() {
+        fetch('/get-avail-day')
+            .then(response => response.json())
+            .then(dates => {
+                var selector = document.getElementById('dateSelector');
+                dates.forEach(date => {
+                    var option = new Option(date, date);
+                    selector.add(option);
+                });
+            });
+        }
+
+        function dateSelected() {
+        var selectedDate = document.getElementById('dateSelector').value;
+        document.getElementById('datePicker').value = selectedDate;
+        fetchImage();
+    }
+
+        // Call this function when the page loads
+        fetchAvailableDates();
+    </script>
+    
+    
+    <div id="dailyImageSection">
+        <h2>Daily Image</h2>
+        <!-- The daily image will be added here -->
+    </div>
+    
+    <div id="imageGallerySection">
+        <h2>Hourly Image</h2>
+        <div id="imageGallery" class="row">
+            <!-- Gallery images will be added here -->
+        </div>
+    </div>
+    
+
+    <!-- Bootstrap JS, Popper.js, and jQuery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.6/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+
+
+</html>
