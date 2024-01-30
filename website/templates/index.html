@@ -19,6 +19,16 @@
             border-radius: 10px;
             cursor: pointer;
         }
+        #contentContainer {
+        display: flex;
+        justify-content: space-between;
+    }
+    #dailyImageSection, #externalContentFrame {
+        width: 49%;
+    }
+    #externalContentFrame {
+        border: none; /* Optional: removes the border of the iframe */
+    }
     </style>
 
 </head>
@@ -37,14 +47,31 @@
                 
                 <input type="date" id="datePicker">
 
-                <button class="custom-button" onclick="changeDay(-1)"> +1Day</button>
-                <button class="custom-button" onclick="changeDay(1)"> -1Day</button>
+                <button class="custom-button" onclick="changeDay(-1)"> -1Day</button>
+                <button class="custom-button" onclick="changeDay(1)"> +1Day</button>
                 
                 <button class="custom-button" onclick="fetchImage()">Show Images</button>
 
             </div>
         </div>
     </div>
+
+    <div id="contentContainer">
+        <div id="dailyImageSection">
+            <h2>Daily Image</h2>
+            <!-- The daily image will be added here -->
+        </div>
+        <iframe id="externalContentFrame" height="600px" src="">
+            <!-- External content will be loaded here -->
+        </iframe>
+    </div>
+    <div id="imageGallerySection">
+        <h2>Hourly Image</h2>
+        <div id="imageGallery" class="row">
+            <!-- Gallery images will be added here -->
+        </div>
+    </div>
+
     <script>
         function fetchImage() {
             var date = document.getElementById('datePicker').value;
@@ -62,8 +89,11 @@
                     }
                 }
             };
+            // update the external content
+            updateExternalContent(date);
             xhr.send('date=' + date);
         }
+
         function displayNoDataMessage() {
         var dailyImageSection = document.getElementById('dailyImageSection');
         var imageGallery = document.getElementById('imageGallery');
@@ -71,7 +101,12 @@
         dailyImageSection.innerHTML = '<h2>Daily Image</h2><p> ... No data this day</p>';
         imageGallery.innerHTML = '<p> ... No data this day</p>';
     }
-
+    
+    function updateExternalContent(date) {
+        var formattedDate = date.replaceAll('-', '');
+        var iframeSrc = `http://ovsa.njit.edu/lwa-data/1min_images/${formattedDate}/movie_${date}.html`;
+        document.getElementById('externalContentFrame').src = iframeSrc;
+    }
     function updateImageDisplay(imageUrls) {
         var dailyImageSection = document.getElementById('dailyImageSection');
         var imageGallery = document.getElementById('imageGallery');
@@ -159,21 +194,11 @@
     setYesterdaysDate(); // Set yesterday's date in the date input
     fetchAvailableDates();
     fetchImage(); // Fetch image for yesterday's date
+    updateExternalContent(document.getElementById('datePicker').value);
 
     </script>
     
     
-    <div id="dailyImageSection">
-        <h2>Daily Image</h2>
-        <!-- The daily image will be added here -->
-    </div>
-    
-    <div id="imageGallerySection">
-        <h2>Hourly Image</h2>
-        <div id="imageGallery" class="row">
-            <!-- Gallery images will be added here -->
-        </div>
-    </div>
     
 
     <!-- Bootstrap JS, Popper.js, and jQuery -->
