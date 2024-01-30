@@ -95,11 +95,11 @@ def traverse_and_print_dates(directory):
 import sys
 
 def one_day_proc(full_path):
-    try:
+    if True:
         year, month, day = extract_date_from_path(full_path)
         if year and month and day:
             print("Processing {}".format(full_path))
-            try:
+            if True:
                 files = glob.glob(full_path + '/*')
                 files.sort()  
                 d = dspec.Dspec()
@@ -118,13 +118,13 @@ def one_day_proc(full_path):
                     os.makedirs('/data1/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
                     fig.savefig('/data1/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
                     plt.close(fig)
-            except:
-                print("Error with {}".format(full_path))
-                # print error msg
-                print( "Error: ", sys.exc_info()[0] )
-    except:
-        print("Error with {}".format(full_path))
-        pass
+#            except:
+#                print("Error with {}".format(full_path))
+#                # print error msg
+#                print( "Error: ", sys.exc_info()[0] )
+#    except:
+#        print("Error with {}".format(full_path))
+#        pass
 
 if __name__ == "__main__":
     """

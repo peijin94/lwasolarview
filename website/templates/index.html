@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -7,24 +6,45 @@
     <title>Select Date</title>
     <!-- Bootstrap CSS -->
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        .custom-select {
+            margin-bottom: 15px;
+        }
+        .custom-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 10px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+    </style>
+
 </head>
 <body>
     <div class="container mt-4">
-        <h1 class="text-center">OVRO LWA daily spectrum</h1>
+        <h1 class="text-center">OVRO LWA Daily Spectrum</h1>
         <div class="row justify-content-center">
-            <div class="col-md-6 text-center">
-                <select id="dateSelector" onchange="dateSelected()">
+            <div class="col-6 text-center">
+                <label for="dateSelector">Available:</label>
+                <select id="dateSelector" class="custom-select" onchange="dateSelected()">
                     <!-- Options will be added here by JavaScript -->
                 </select>
+            </div>
+            <div class="col-6 text-center">
+                <label for="datePicker">Select a day (mm/dd/yyyy):</label>
                 
                 <input type="date" id="datePicker">
+
+                <button class="custom-button" onclick="changeDay(-1)"> +1Day</button>
+                <button class="custom-button" onclick="changeDay(1)"> -1Day</button>
                 
-                <button onclick="fetchImage()">Show Images</button>
+                <button class="custom-button" onclick="fetchImage()">Show Images</button>
+
             </div>
-            
         </div>
     </div>
-
     <script>
         function fetchImage() {
             var date = document.getElementById('datePicker').value;
@@ -87,26 +107,59 @@
     }
         
 
-        function fetchAvailableDates() {
+    function fetchAvailableDates() {
         fetch('/get-avail-day')
             .then(response => response.json())
             .then(dates => {
                 var selector = document.getElementById('dateSelector');
+                dates.reverse(); // Reversing the order of dates
                 dates.forEach(date => {
                     var option = new Option(date, date);
                     selector.add(option);
                 });
             });
-        }
+    }
 
         function dateSelected() {
         var selectedDate = document.getElementById('dateSelector').value;
         document.getElementById('datePicker').value = selectedDate;
         fetchImage();
     }
+    // Function to calculate yesterday's date
+    function setYesterdaysDate() {
+        var today = new Date();
+        var yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        var dd = String(yesterday.getDate()).padStart(2, '0');
+        var mm = String(yesterday.getMonth() + 1).padStart(2, '0'); //January is 0!
+        var yyyy = yesterday.getFullYear();
+
+        yesterday = yyyy + '-' + mm + '-' + dd;
+        document.getElementById('datePicker').value = yesterday;
+    }
+
+
+    function changeDay(offset) {
+        var currentDate = new Date(document.getElementById('datePicker').value);
+        currentDate.setDate(currentDate.getDate() + offset);
+
+        var dd = String(currentDate.getDate()).padStart(2, '0');
+        var mm = String(currentDate.getMonth() + 1).padStart(2, '0');
+        var yyyy = currentDate.getFullYear();
+
+        var newDate = yyyy + '-' + mm + '-' + dd;
+        document.getElementById('datePicker').value = newDate;
+
+        fetchImage(); // Fetch images for the new date
+    }
 
         // Call this function when the page loads
-        fetchAvailableDates();
+        // Call these functions when the page loads
+    setYesterdaysDate(); // Set yesterday's date in the date input
+    fetchAvailableDates();
+    fetchImage(); // Fetch image for yesterday's date
+
     </script>
     
     
