@@ -29,7 +29,7 @@ def get_image():
 
     print(image_paths)
     # Construct URLs for the images
-    image_urls = [f'/extm/{path}' for path in image_paths]
+    image_urls = [f'/lwa/extm/{path}' for path in image_paths]
     return jsonify({'image_urls': image_urls})
 
 

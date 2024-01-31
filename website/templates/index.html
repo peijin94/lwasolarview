@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Date</title>
+    <link rel="shortcut icon" href="/lwa/static/img/favicon.ico" type="image/x-icon">
+
+    <title>OVRO Solar Viewer</title>
     <!-- Bootstrap CSS -->
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
 
@@ -33,8 +35,13 @@
 
 </head>
 <body>
+    <header>
+        <img src="/lwa/static/img/logo.jpg" alt="Logo" id="websiteLogo">
+        <!-- ... other header elements ... -->
+    </header>
+
     <div class="container mt-4">
-        <h1 class="text-center">OVRO LWA Daily Spectrum</h1>
+        <h1 class="text-center">OVRO LWA Solar Observation Preview</h1>
         <div class="row justify-content-center">
             <div class="col-6 text-center">
                 <label for="dateSelector">Available:</label>
@@ -76,7 +83,7 @@
         function fetchImage() {
             var date = document.getElementById('datePicker').value;
             var xhr = new XMLHttpRequest();
-            xhr.open("POST", "/get-image", true);
+            xhr.open("POST", "/lwa/get-image", true);
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
             xhr.onload = function () {
                 if (xhr.status === 200) {
@@ -143,11 +150,11 @@
         
 
     function fetchAvailableDates() {
-        fetch('/get-avail-day')
+        fetch('/lwa/get-avail-day')
             .then(response => response.json())
             .then(dates => {
                 var selector = document.getElementById('dateSelector');
-                dates.reverse(); // Reversing the order of dates
+                dates.sort().reverse(); // Reversing the order of dates
                 dates.forEach(date => {
                     var option = new Option(date, date);
                     selector.add(option);
