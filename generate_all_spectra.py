@@ -79,14 +79,14 @@ def traverse_and_print_dates(directory):
                     hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
                 
                     fig = d.plot( pol='IP', plot_fast=True)
-                    fig.savefig('/data1/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
-                    d.tofits('/data1/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
+                    fig.savefig('/common/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
+                    d.tofits('/common/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
                     for i in range(len(hourly_ranges)):
                         thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
                                     hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
                         fig = d.plot(pol='IP',timerange=thishour,plot_fast=True)
-                        os.makedirs('/data1/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
-                        fig.savefig('/data1/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
+                        os.makedirs('/common/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
+                        fig.savefig('/common/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
                         plt.close(fig)
                 except:
                     print("Error with {}".format(full_path))
@@ -109,14 +109,14 @@ def one_day_proc(full_path):
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
             
                 fig = d.plot( pol='IP', plot_fast=True)
-                fig.savefig('/data1/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
-                d.tofits('/data1/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
+                fig.savefig('/common/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
+                d.tofits('/common/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
                 for i in range(len(hourly_ranges)):
                     thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
                                 hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
                     fig = d.plot(pol='IP',timerange=thishour,plot_fast=True)
-                    os.makedirs('/data1/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
-                    fig.savefig('/data1/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
+                    os.makedirs('/common/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
+                    fig.savefig('/common/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
                     plt.close(fig)
 #            except:
 #                print("Error with {}".format(full_path))

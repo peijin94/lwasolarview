@@ -3,7 +3,7 @@ import os
 app = Flask(__name__)
 from flask import jsonify
 
-EXTERNAL_IMAGES_FOLDER = '/data1/lwa/spec/'
+EXTERNAL_IMAGES_FOLDER = '/common/lwa/spec/'
 @app.route('/')
 def index():
     return render_template('index.html')
