@@ -98,7 +98,7 @@ def one_day_proc(full_path):
     if True:
         year, month, day = extract_date_from_path(full_path)
         if year and month and day:
-            print("Processing {}".format(full_path))
+            print("[", Time.now().datetime ,"], Processing {}".format(full_path))
             if True:
                 files = glob.glob(full_path + '/*')
                 files.sort()  
@@ -124,7 +124,6 @@ def one_day_proc(full_path):
 #                print( "Error: ", sys.exc_info()[0] )
 #    except:
 #        print("Error with {}".format(full_path))
-#        pass
 
 if __name__ == "__main__":
     """
@@ -143,7 +142,9 @@ if __name__ == "__main__":
     parser.add_argument('--oneday', action='store_true', help='Process one day')
     parser.add_argument('--lasttwoday', action='store_true', help='Process the last two days data')
     parser.add_argument('--onedaypath', type=str, help='The data path for one day processing')
+    parser.add_argument('--lastnday', type=int, help='Process the last n days data',default=-1)
     parser.add_argument('--runall', action='store_true', help='Process all historical data')
+
 
     args = parser.parse_args()
     directory_path = args.datahome
@@ -159,5 +160,12 @@ if __name__ == "__main__":
         yyyy_today, mm_today, dd_today = today.strftime("%Y"), today.strftime("%m"), today.strftime("%d")
         yyyy_yesterday, mm_yesterday, dd_yesterday = yesterday.strftime("%Y"), yesterday.strftime("%m"), yesterday.strftime("%d")
 
-        one_day_proc(os.path.join(directory_path, yyyy_today+mm_today, 'beam'+yyyy_today+mm_today+dd_today))
         one_day_proc(os.path.join(directory_path, yyyy_yesterday+mm_yesterday, 'beam'+yyyy_yesterday+mm_yesterday+dd_yesterday))
+        one_day_proc(os.path.join(directory_path, yyyy_today+mm_today, 'beam'+yyyy_today+mm_today+dd_today))
+    elif args.lastnday>0:
+        import datetime
+        today = datetime.date.today()
+        for i in range(args.lastnday):
+            today = today - datetime.timedelta(days=1)
+            yyyy, mm, dd = today.strftime("%Y"), today.strftime("%m"), today.strftime("%d")
+            one_day_proc(os.path.join(directory_path, yyyy+mm, 'beam'+yyyy+mm+dd))
