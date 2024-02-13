@@ -136,6 +136,15 @@
                 window.open(imageUrls[0], '_blank');
             };
             dailyImageSection.appendChild(dailyImg);
+
+                // Create and append the link for the .fits file
+            var fitsUrl = imageUrls[0].replace(".png", ".fits").replace("/daily", "/fits");
+            var fitsLink = document.createElement('a');
+            fitsLink.href = fitsUrl;
+            fitsLink.textContent = "Download FITS file";
+            fitsLink.style.display = "block"; // Ensures the link appears on a new line
+            fitsLink.target = "_blank"; // Opens the link in a new tab
+            dailyImageSection.appendChild(fitsLink);
         }
 
         // Set the gallery images
