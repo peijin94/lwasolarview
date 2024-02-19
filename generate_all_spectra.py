@@ -108,13 +108,13 @@ def one_day_proc(full_path):
                 time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
             
-                fig = d.plot( pol='IP', plot_fast=True)
+                fig = d.plot( pol='IP', plot_fast=True,minmaxpercentile=True)
                 fig.savefig('/common/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
                 d.tofits('/common/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
                 for i in range(len(hourly_ranges)):
                     thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
                                 hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
-                    fig = d.plot(pol='IP',timerange=thishour,plot_fast=True)
+                    fig = d.plot(pol='IP',timerange=thishour,plot_fast=True,minmaxpercentile=True)
                     os.makedirs('/common/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
                     fig.savefig('/common/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
                     plt.close(fig)
