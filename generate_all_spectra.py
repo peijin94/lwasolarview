@@ -78,13 +78,13 @@ def traverse_and_print_dates(directory):
                     time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                     hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
                 
-                    fig = d.plot( pol='IP', plot_fast=True)
+                    fig = d.plot( pol='IP', plot_fast=True, minmaxpercentile=True)
                     fig.savefig('/common/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
                     d.tofits('/common/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
                     for i in range(len(hourly_ranges)):
                         thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
                                     hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
-                        fig = d.plot(pol='IP',timerange=thishour,plot_fast=True)
+                        fig = d.plot(pol='IP',timerange=thishour,plot_fast=True,minmaxpercentile=True)
                         os.makedirs('/common/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
                         fig.savefig('/common/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
                         plt.close(fig)
@@ -99,7 +99,7 @@ def one_day_proc(full_path):
         year, month, day = extract_date_from_path(full_path)
         if year and month and day:
             print("[", Time.now().datetime ,"], Processing {}".format(full_path))
-            if True:
+            try:
                 files = glob.glob(full_path + '/*')
                 files.sort()  
                 d = dspec.Dspec()
@@ -118,10 +118,10 @@ def one_day_proc(full_path):
                     os.makedirs('/common/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
                     fig.savefig('/common/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
                     plt.close(fig)
-#            except:
-#                print("Error with {}".format(full_path))
-#                # print error msg
-#                print( "Error: ", sys.exc_info()[0] )
+            except:
+                print("Error with {}".format(full_path))
+                # print error msg
+                print( "Error: ", sys.exc_info()[0] )
 #    except:
 #        print("Error with {}".format(full_path))
 
