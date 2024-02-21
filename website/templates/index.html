@@ -83,7 +83,7 @@
 
     <div id="contentContainer">
         <div id="dailyImageSection">
-            <h2>Daily Spectrum</h2>
+            <h2>Daily spectrogram</h2>
             <!-- The daily image will be added here -->
         </div>
         <iframe id="externalContentFrame" height="600px" src="">
@@ -91,7 +91,7 @@
         </iframe>
     </div>
     <div id="imageGallerySection">
-        <h2>Hourly Spectrum</h2>
+        <h2>Hourly spectrogram</h2>
         <div id="imageGallery" class="row">
             <!-- Gallery images will be added here -->
         </div>
@@ -123,7 +123,7 @@
         var dailyImageSection = document.getElementById('dailyImageSection');
         var imageGallery = document.getElementById('imageGallery');
 
-        dailyImageSection.innerHTML = '<h2>Daily Spectrum</h2><p> ... No data this day</p>';
+        dailyImageSection.innerHTML = '<h2>Daily spectrogram</h2><p> ... No data this day</p>';
         imageGallery.innerHTML = '<p> ... No data this day</p>';
     }
     
@@ -137,7 +137,7 @@
         var imageGallery = document.getElementById('imageGallery');
 
         // Clear existing content
-        dailyImageSection.innerHTML = '<h2>Daily Spectrum</h2>';
+        dailyImageSection.innerHTML = '<h2>Daily spectrogram</h2>';
         imageGallery.innerHTML = '';
 
         // Set the daily image if available
