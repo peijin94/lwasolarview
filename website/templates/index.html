@@ -133,6 +133,8 @@
         document.getElementById('externalContentFrame').src = iframeSrc;
     }
     function updateImageDisplay(imageUrls) {
+        // sort img  urls
+        imageUrls.sort();
         var dailyImageSection = document.getElementById('dailyImageSection');
         var imageGallery = document.getElementById('imageGallery');
 
