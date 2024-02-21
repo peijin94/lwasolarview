@@ -120,7 +120,17 @@ def one_day_proc(full_path):
                 time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
             
-                fig = d.plot( pol='IP', plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
+                fig = d.plot( pol='I', plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
+                ax = fig.get_axes()[0]
+                locator = AutoDateLocator(minticks=2)
+                ax.xaxis.set_major_locator(locator)
+                                # ax1.xaxis.set_major_formatter(AutoDateFormatter(locator))
+                formatter = AutoDateFormatter(locator)
+                formatter.scaled[1 / 24] = '%H:%M'
+                formatter.scaled[1 / (24 * 60)] = '%H:%M'
+                ax.xaxis.set_major_formatter(formatter)
+                ax.set_title(d.time_axis[0].strftime('%Y-%m-%d %H:%M:%S') + ' - ' + d.time_axis[-1].strftime('%Y-%m-%d %H:%M:%S'))
+
                 fig.savefig('/common/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
                 d.tofits('/common/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
                 for i in range(len(hourly_ranges)):
