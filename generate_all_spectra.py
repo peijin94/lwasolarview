@@ -6,6 +6,7 @@ import re
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.dates import AutoDateLocator, AutoDateFormatter
 plt.ioff()
 
 from suncasa.dspec import dspec
@@ -78,13 +79,24 @@ def traverse_and_print_dates(directory):
                     time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                     hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
                 
-                    fig = d.plot( pol='IP', plot_fast=True, minmaxpercentile=True)
+                    fig = d.plot( pol='I', plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
+
+                    ax = fig.get_axes()[0]
+                    locator = AutoDateLocator(minticks=2)
+                    ax.xaxis.set_major_locator(locator)
+                                    # ax1.xaxis.set_major_formatter(AutoDateFormatter(locator))
+                    formatter = AutoDateFormatter(locator)
+                    formatter.scaled[1 / 24] = '%H:%M'
+                    formatter.scaled[1 / (24 * 60)] = '%H:%M'
+                    ax.xaxis.set_major_formatter(formatter)
+                    ax.set_title(d.time_axis[0].strftime('%Y-%m-%d %H:%M:%S') + ' - ' + d.time_axis[-1].strftime('%Y-%m-%d %H:%M:%S'))
+
                     fig.savefig('/common/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
                     d.tofits('/common/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
                     for i in range(len(hourly_ranges)):
                         thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
                                     hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
-                        fig = d.plot(pol='IP',timerange=thishour,plot_fast=True,minmaxpercentile=True)
+                        fig = d.plot(pol='IP',timerange=thishour,plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
                         os.makedirs('/common/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
                         fig.savefig('/common/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
                         plt.close(fig)
@@ -108,13 +120,13 @@ def one_day_proc(full_path):
                 time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
             
-                fig = d.plot( pol='IP', plot_fast=True,minmaxpercentile=True)
+                fig = d.plot( pol='IP', plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
                 fig.savefig('/common/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
                 d.tofits('/common/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
                 for i in range(len(hourly_ranges)):
                     thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
                                 hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
-                    fig = d.plot(pol='IP',timerange=thishour,plot_fast=True,minmaxpercentile=True)
+                    fig = d.plot(pol='IP',timerange=thishour,plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
                     os.makedirs('/common/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
                     fig.savefig('/common/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
                     plt.close(fig)
