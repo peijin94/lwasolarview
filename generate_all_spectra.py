@@ -81,15 +81,16 @@ def traverse_and_print_dates(directory):
             year, month, day = extract_date_from_path(full_path)
             if year and month and day:
                 print("Processing {}".format(full_path))
+                #if True:
                 try:
                     files = glob.glob(data_directory + '/*')
-                    files.sort()  
+                    files.sort()
                     d = dspec.Dspec()
                     d.read(files, source='lwa', timebin=32, freqbin=5, freqrange=[29,84], stokes='IV')
 
                     time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                     hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
-                
+
                     fig = d.plot( pol='I', plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
 
                     ax = fig.get_axes()[0]
@@ -117,44 +118,50 @@ def traverse_and_print_dates(directory):
 
 import sys
 
-def one_day_proc(full_path, cal_dirs = []):
+def one_day_proc(full_path, freq_bin=4, cal_dirs = []):
     if True:
         year, month, day = extract_date_from_path(full_path)
         if year and month and day:
             print("[", Time.now().datetime ,"], Processing {}".format(full_path))
             try:
+            #if True:
                 files = glob.glob(full_path + '/*')
-                files.sort()  
+                files.sort()
                 d = dspec.Dspec()
-                d.read(files, source='lwa', timebin=32, freqbin=5, stokes='IV')
 
+                d.read(files, source='lwa', timebin=32, freqbin=freq_bin, stokes='IV')
+                print(cal_dirs)
+                do_calib = False
                 if len(cal_dirs)>0: # do calibration
+                    do_calib=True
                     cal_files = []
                     for cal_dir in cal_dirs:
                         cal_files += glob.glob(cal_dir + '/*.csv')
                     cal_files.sort(key=lambda x: x.split('/')[-1].split('_')[0])
                 # get filename from full path
-                date_cal_lst = [ cal_factor_csv_f.split('/')[-1].split('_')[0] 
+                    date_cal_lst = [ cal_factor_csv_f.split('/')[-1].split('_')[0]
                             for cal_factor_csv_f in cal_files]
-                
-                time_of_firstslot = d.time_axis[0]
-                str_this_day = time_of_firstslot.to_datetime().strftime('%Y%m%d')
 
-                idx_cal = 0
-                for date_cal in date_cal_lst:
-                    if date_cal <= str_this_day:
-                        cal_fname = date_cal
-                        idx_cal += 1
-                    else:
-                        break
-                print("Using calibration factor from {}".format(cal_files[idx_cal-1]))
-                freq_num, cal_num = get_cal_factor(cal_files[idx_cal-1])
-                
-                d.data = d.data / cal_num[None,None,:,None]
+                    time_of_firstslot = d.time_axis[0]
+                    str_this_day = time_of_firstslot.to_datetime().strftime('%Y%m%d')
 
+                    idx_cal = 0
+                    for date_cal in date_cal_lst:
+                        if date_cal <= str_this_day:
+                            cal_fname = date_cal
+                            idx_cal += 1
+                        else:
+                            break
+                    print("Using calibration factor from {}".format(cal_files[idx_cal-1]))
+                    freq_num, cal_num = get_cal_factor(cal_files[idx_cal-1])
+
+
+                if do_calib:
+                    cal_num_downsp = cal_num[::freq_bin]
+                    d.data = d.data / cal_num_downsp[None,None,:,None]
                 time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
-            
+
                 fig = d.plot( pol='I', plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
                 ax = fig.get_axes()[0]
                 locator = AutoDateLocator(minticks=2)
@@ -185,7 +192,7 @@ def one_day_proc(full_path, cal_dirs = []):
 if __name__ == "__main__":
     """
     This script is used to generate all the spectra for the LWA data
-    
+
     Example usage:
     python generate_all_spectra.py --oneday /nas5/ovro-lwa-data/beam/beam-data/202106/beam20210601
     python generate_all_spectra.py --lasttwoday
@@ -203,7 +210,7 @@ if __name__ == "__main__":
     parser.add_argument('--runall', action='store_true', help='Process all historical data')
     parser.add_argument('--dir_cal', type=str, help='The directory for calibration factor',
                         default='')
-    
+
     pre_defined_cal_dir = [
         '/lustre/bin.chen/realtime_pipeline/caltables_beam/',
         '/nas6/ovro-lwa-data/calibrations/caltables_beam/'
@@ -212,7 +219,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     directory_path = args.datahome
-    pre_defined_cal_dir = pre_defined_cal_dir.append(args.dir_cal)
+    print(pre_defined_cal_dir)
+    print(args.dir_cal)
+    pre_defined_cal_dir.append(args.dir_cal)
+    print(pre_defined_cal_dir)
     if args.oneday:
         one_day_proc(args.onedaypath)
     elif args.runall:
@@ -233,4 +243,4 @@ if __name__ == "__main__":
         for i in range(args.lastnday):
             today = today - datetime.timedelta(days=1)
             yyyy, mm, dd = today.strftime("%Y"), today.strftime("%m"), today.strftime("%d")
-            one_day_proc(os.path.join(directory_path, yyyy+mm, 'beam'+yyyy+mm+dd))
+            one_day_proc(os.path.join(directory_path, yyyy+mm, 'beam'+yyyy+mm+dd), cal_dirs = pre_defined_cal_dir)
