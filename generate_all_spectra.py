@@ -9,6 +9,15 @@ import matplotlib.pyplot as plt
 from matplotlib.dates import AutoDateLocator, AutoDateFormatter
 plt.ioff()
 
+from copy import copy
+from matplotlib import colors
+import matplotlib.pyplot as plt
+
+from matplotlib.dates import AutoDateFormatter, AutoDateLocator, num2date
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from astropy.time import Time
+import numpy as np
+
 from suncasa.dspec import dspec
 import glob
 
@@ -41,14 +50,6 @@ def divide_time_in_hours(time_start, time_end, hour_length=1/24):
 
     return time_sections
 
-from copy import copy
-from matplotlib import colors
-import matplotlib.pyplot as plt
-
-from matplotlib.dates import AutoDateFormatter, AutoDateLocator, num2date
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from astropy.time import Time
-import numpy as np
 
 def rebin1d(arr, new_len):
     shape = (new_len, len(arr) // new_len)
@@ -61,7 +62,17 @@ def rebin2d(arr, new_shape):
     return arr.reshape(shape).mean(-1).mean(1)
 
 
-from suncasa.dspec import dspec
+def get_cal_factor(cal_factor_file):
+    import csv
+    with open(cal_factor_file, 'r') as f:
+        reader = csv.reader(f)
+        cal_factors = list(reader)
+    freq_num = [ a[0] for a in cal_factors[1:]]
+    cal_num = [ a[1] for a in cal_factors[1:]]
+    freq_num = np.array(freq_num, dtype=float)
+    cal_num = np.array(cal_num, dtype=float)
+    return freq_num, cal_num
+
 def traverse_and_print_dates(directory):
     for root, dirs, _ in os.walk(directory):
         for name in dirs:
@@ -106,7 +117,7 @@ def traverse_and_print_dates(directory):
 
 import sys
 
-def one_day_proc(full_path):
+def one_day_proc(full_path, cal_dirs = []):
     if True:
         year, month, day = extract_date_from_path(full_path)
         if year and month and day:
@@ -115,7 +126,31 @@ def one_day_proc(full_path):
                 files = glob.glob(full_path + '/*')
                 files.sort()  
                 d = dspec.Dspec()
-                d.read(files, source='lwa', timebin=32, freqbin=5, freqrange=[29,84], stokes='IV')
+                d.read(files, source='lwa', timebin=32, freqbin=5, stokes='IV')
+
+                if len(cal_dirs)>0: # do calibration
+                    cal_files = []
+                    for cal_dir in cal_dirs:
+                        cal_files += glob.glob(cal_dir + '/*.csv')
+                    cal_files.sort(key=lambda x: x.split('/')[-1].split('_')[0])
+                # get filename from full path
+                date_cal_lst = [ cal_factor_csv_f.split('/')[-1].split('_')[0] 
+                            for cal_factor_csv_f in cal_files]
+                
+                time_of_firstslot = d.time_axis[0]
+                str_this_day = time_of_firstslot.to_datetime().strftime('%Y%m%d')
+
+                idx_cal = 0
+                for date_cal in date_cal_lst:
+                    if date_cal <= str_this_day:
+                        cal_fname = date_cal
+                        idx_cal += 1
+                    else:
+                        break
+                print("Using calibration factor from {}".format(cal_files[idx_cal-1]))
+                freq_num, cal_num = get_cal_factor(cal_files[idx_cal-1])
+                
+                d.data = d.data / cal_num[None,None,:,None]
 
                 time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
@@ -166,10 +201,18 @@ if __name__ == "__main__":
     parser.add_argument('--onedaypath', type=str, help='The data path for one day processing')
     parser.add_argument('--lastnday', type=int, help='Process the last n days data',default=-1)
     parser.add_argument('--runall', action='store_true', help='Process all historical data')
+    parser.add_argument('--dir_cal', type=str, help='The directory for calibration factor',
+                        default='')
+    
+    pre_defined_cal_dir = [
+        '/lustre/bin.chen/realtime_pipeline/caltables_beam/',
+        '/nas6/ovro-lwa-data/calibrations/caltables_beam/'
+    ]
 
 
     args = parser.parse_args()
     directory_path = args.datahome
+    pre_defined_cal_dir = pre_defined_cal_dir.append(args.dir_cal)
     if args.oneday:
         one_day_proc(args.onedaypath)
     elif args.runall:
@@ -182,8 +225,8 @@ if __name__ == "__main__":
         yyyy_today, mm_today, dd_today = today.strftime("%Y"), today.strftime("%m"), today.strftime("%d")
         yyyy_yesterday, mm_yesterday, dd_yesterday = yesterday.strftime("%Y"), yesterday.strftime("%m"), yesterday.strftime("%d")
 
-        one_day_proc(os.path.join(directory_path, yyyy_yesterday+mm_yesterday, 'beam'+yyyy_yesterday+mm_yesterday+dd_yesterday))
-        one_day_proc(os.path.join(directory_path, yyyy_today+mm_today, 'beam'+yyyy_today+mm_today+dd_today))
+        one_day_proc(os.path.join(directory_path, yyyy_yesterday+mm_yesterday, 'beam'+yyyy_yesterday+mm_yesterday+dd_yesterday), cal_dirs = pre_defined_cal_dir)
+        one_day_proc(os.path.join(directory_path, yyyy_today+mm_today, 'beam'+yyyy_today+mm_today+dd_today), cal_dirs = pre_defined_cal_dir)
     elif args.lastnday>0:
         import datetime
         today = datetime.date.today()
