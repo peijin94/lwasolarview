@@ -1,14 +1,11 @@
 import os
 import re
-
-
 # display off
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.dates import AutoDateLocator, AutoDateFormatter
 plt.ioff()
-
 from copy import copy
 from matplotlib import colors
 import matplotlib.pyplot as plt
@@ -17,9 +14,16 @@ from matplotlib.dates import AutoDateFormatter, AutoDateLocator, num2date
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from astropy.time import Time
 import numpy as np
-
 from suncasa.dspec import dspec
 import glob
+
+from ovrolwasolar import visualization as ovis
+
+from ovrolwasolar.visualization import njit_logo_str, nsf_logo
+import base64
+import io
+import matplotlib.image as mpimg
+
 
 def extract_date_from_path(path):
     # Regular expression to match the date pattern in directory names
@@ -118,7 +122,7 @@ def traverse_and_print_dates(directory):
 
 import sys
 
-def one_day_proc(full_path, freq_bin=4, cal_dirs = []):
+def one_day_proc(full_path, freq_bin=4, cal_dirs = [], add_logo=True):
     if True:
         year, month, day = extract_date_from_path(full_path)
         if year and month and day:
@@ -172,6 +176,22 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = []):
                 formatter.scaled[1 / (24 * 60)] = '%H:%M'
                 ax.xaxis.set_major_formatter(formatter)
                 ax.set_title(d.time_axis[0].strftime('%Y-%m-%d %H:%M:%S') + ' - ' + d.time_axis[-1].strftime('%Y-%m-%d %H:%M:%S'))
+
+                if add_logo:
+
+                    ax_logo1 = fig.add_axes([0.89, 0.91, 0.15, 0.08])
+                    img1 = base64.b64decode(njit_logo_str)
+                    img1 = io.BytesIO(img1)
+                    img1 = mpimg.imread(img1, format='png')
+                    ax_logo1.imshow(img1)
+                    ax_logo1.axis('off')
+
+                    ax_logo2 = fig.add_axes([0.81, 0.91, 0.15, 0.09])
+                    img2 = base64.b64decode(nsf_logo)
+                    img2 = io.BytesIO(img2)
+                    img2 = mpimg.imread(img2, format='png')
+                    ax_logo2.imshow(img2)
+                    ax_logo2.axis('off')
 
                 fig.savefig('/common/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
                 d.tofits('/common/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
