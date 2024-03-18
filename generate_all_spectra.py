@@ -214,7 +214,7 @@ if __name__ == "__main__":
     This script is used to generate all the spectra for the LWA data
 
     Example usage:
-    python generate_all_spectra.py --oneday /nas5/ovro-lwa-data/beam/beam-data/202106/beam20210601
+    python generate_all_spectra.py --oneday 
     python generate_all_spectra.py --lasttwoday
     """
 
