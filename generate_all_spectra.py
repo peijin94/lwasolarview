@@ -87,68 +87,46 @@ def traverse_and_print_dates(directory):
                 print("Processing {}".format(full_path))
                 #if True:
                 try:
-                    files = glob.glob(data_directory + '/*')
-                    files.sort()
-                    d = dspec.Dspec()
-                    d.read(files, source='lwa', timebin=32, freqbin=5, freqrange=[29,84], stokes='IV')
-
-                    time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
-                    hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
-
-                    fig = d.plot( pol='I', plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
-
-                    ax = fig.get_axes()[0]
-                    locator = AutoDateLocator(minticks=2)
-                    ax.xaxis.set_major_locator(locator)
-                                    # ax1.xaxis.set_major_formatter(AutoDateFormatter(locator))
-                    formatter = AutoDateFormatter(locator)
-                    formatter.scaled[1 / 24] = '%H:%M'
-                    formatter.scaled[1 / (24 * 60)] = '%H:%M'
-                    ax.xaxis.set_major_formatter(formatter)
-                    ax.set_title(d.time_axis[0].strftime('%Y-%m-%d %H:%M:%S') + ' - ' + d.time_axis[-1].strftime('%Y-%m-%d %H:%M:%S'))
-
-                    fig.savefig('/common/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
-                    d.tofits('/common/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
-                    for i in range(len(hourly_ranges)):
-                        thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
-                                    hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
-                        fig = d.plot(pol='IP',timerange=thishour,plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
-                        os.makedirs('/common/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
-                        fig.savefig('/common/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
-                        plt.close(fig)
+                    print(full_path)
+                    #one_day_proc(full_path)
                 except:
                     print("Error with {}".format(full_path))
                     pass
 
 import sys
 
-def one_day_proc(full_path, freq_bin=4, cal_dirs = [], add_logo=True):
+def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/nas6/ovro-lwa-data/calibrations/caltables_beam/'],
+    add_logo=True, t1 = '2024-03-08', t2 = '2024-03-23'):
     if True:
         year, month, day = extract_date_from_path(full_path)
+
+        # compare year, month, day with t1 and t2
+        cal_strategy=0,1,2
+        if '-'.join([year, month, day]) < t1:
+            cal_strategy = 0 # use caltable
+        elif '-'.join([year, month, day]) >= t1 and '-'.join([year, month, day]) <= t2:
+            cal_strategy = 1 # use caltable and defivde by cal factor 5e4
+        elif '-'.join([year, month, day]) > t2:
+            cal_strategy = 2 # do not use caltable
+
         if year and month and day:
             print("[", Time.now().datetime ,"], Processing {}".format(full_path))
             try:
-            #if True:
-                files = glob.glob(full_path + '/*')
-                files.sort()
-                d = dspec.Dspec()
+                
+                str_this_day = ''.join([year, month, day])
 
-                d.read(files, source='lwa', timebin=32, freqbin=freq_bin, stokes='IV')
-                print(cal_dirs)
-                do_calib = False
-                if len(cal_dirs)>0: # do calibration
+                if len(cal_dirs)>0 and (cal_strategy!=2): # do calibration
                     do_calib=True
                     cal_files = []
                     for cal_dir in cal_dirs:
                         cal_files += glob.glob(cal_dir + '/*.csv')
                     cal_files.sort(key=lambda x: x.split('/')[-1].split('_')[0])
-                # get filename from full path
+
+                    # find latest cal-list
+
                     date_cal_lst = [ cal_factor_csv_f.split('/')[-1].split('_')[0]
                             for cal_factor_csv_f in cal_files]
-
-                    time_of_firstslot = d.time_axis[0]
-                    str_this_day = time_of_firstslot.to_datetime().strftime('%Y%m%d')
-
+                
                     idx_cal = 0
                     for date_cal in date_cal_lst:
                         if date_cal <= str_this_day:
@@ -157,16 +135,32 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = [], add_logo=True):
                         else:
                             break
                     print("Using calibration factor from {}".format(cal_files[idx_cal-1]))
-                    freq_num, cal_num = get_cal_factor(cal_files[idx_cal-1])
+                    cal_factor_file = cal_files[idx_cal-1]
+                else:
+                    cal_factor_file = None
+
+                if cal_strategy == 1:
+                    cal_factor_calfac_x = 5e4
+                    cal_factor_calfac_y = 5e4
+                else:
+                    cal_factor_calfac_x = None
+                    cal_factor_calfac_y = None
 
 
-                if do_calib:
-                    cal_num_downsp = cal_num[::freq_bin]
-                    d.data = d.data / cal_num_downsp[None,None,:,None]
+                files = glob.glob(full_path + '/*')
+                files.sort()
+                d = dspec.Dspec()
+                
+                d.read(files, source='lwa', timebin=8, freqbin=freq_bin, stokes='IV',freqrange=[29,84],
+                    flux_factor_file=cal_factor_file, 
+                    flux_factor_calfac_x=cal_factor_calfac_x,
+                    flux_factor_calfac_y=cal_factor_calfac_y)
+                
                 time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
 
-                fig = d.plot( pol='I', plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
+                fig = d.plot( pol='I',minmaxpercentile=True,vmax2=0.5,vmin2=-0.5,
+                             freq_unit="MHz")
                 ax = fig.get_axes()[0]
                 locator = AutoDateLocator(minticks=2)
                 ax.xaxis.set_major_locator(locator)
@@ -193,14 +187,14 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = [], add_logo=True):
                     ax_logo2.imshow(img2)
                     ax_logo2.axis('off')
 
-                fig.savefig('/common/lwa/spec/daily/{}{}{}.png'.format(year,month,day))
-                d.tofits('/common/lwa/spec/fits/{}{}{}.fits'.format(year,month,day))
+                fig.savefig('/common/lwa/spec_v2/daily/{}{}{}.png'.format(year,month,day))
+                d.tofits('/common/lwa/spec_v2/fits/{}{}{}.fits'.format(year,month,day))
                 for i in range(len(hourly_ranges)):
                     thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
-                                hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
+                                 hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
                     fig = d.plot(pol='IP',timerange=thishour,plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
-                    os.makedirs('/common/lwa/spec/hourly/{}{}'.format(year,month), exist_ok=True)
-                    fig.savefig('/common/lwa/spec/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
+                    os.makedirs('/common/lwa/spec_v2/hourly/{}{}'.format(year,month), exist_ok=True)
+                    fig.savefig('/common/lwa/spec_v2/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
                     plt.close(fig)
             except:
                 print("Error with {}".format(full_path))
@@ -228,8 +222,7 @@ if __name__ == "__main__":
     parser.add_argument('--onedaypath', type=str, help='The data path for one day processing')
     parser.add_argument('--lastnday', type=int, help='Process the last n days data',default=-1)
     parser.add_argument('--runall', action='store_true', help='Process all historical data')
-    parser.add_argument('--dir_cal', type=str, help='The directory for calibration factor',
-                        default='')
+    parser.add_argument('--dir_cal', type=str, help='The directory for calibration factor', default='')
 
     pre_defined_cal_dir = [
         '/lustre/bin.chen/realtime_pipeline/caltables_beam/',
