@@ -16,7 +16,7 @@ from astropy.time import Time
 import numpy as np
 from suncasa.dspec import dspec
 import glob
-
+import traceback
 from ovrolwasolar import visualization as ovis
 
 from ovrolwasolar.visualization import njit_logo_str, nsf_logo
@@ -157,6 +157,7 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/data1/pzhang/lwasolarview/
                     flux_factor_calfac_x=cal_factor_calfac_x,
                     flux_factor_calfac_y=cal_factor_calfac_y)
                 
+                d.tofits('/common/lwa/spec_v2/fits/{}{}{}.fits'.format(year,month,day))
                 time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
 
@@ -189,7 +190,6 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/data1/pzhang/lwasolarview/
                     ax_logo2.axis('off')
 
                 fig.savefig('/common/lwa/spec_v2/daily/{}{}{}.png'.format(year,month,day))
-                d.tofits('/common/lwa/spec_v2/fits/{}{}{}.fits'.format(year,month,day))
                 for i in range(len(hourly_ranges)):
                     thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
                                  hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
@@ -202,6 +202,8 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/data1/pzhang/lwasolarview/
                     fig.savefig('/common/lwa/spec_v2/hourly/{}{}/{}_{}.png'.format(year,month,day,i), bbox_inches='tight')
                     plt.close(fig)
             except:
+
+                print(traceback.format_exc())
                 print("Error with {}".format(full_path))
                 # print error msg
                 print( "Error: ", sys.exc_info()[0] )
@@ -228,7 +230,7 @@ if __name__ == "__main__":
     parser.add_argument('--lastnday', type=int, help='Process the last n days data',default=-1)
     parser.add_argument('--runall', action='store_true', help='Process all historical data')
     parser.add_argument('--dir_cal', type=str, help='The directory for calibration factor', default='')
-    parser.add_argument('--startingday', type=str, help='The starting day for processing', default='20230829')
+    parser.add_argument('--startingday', type=str, help='The starting day for processing', default='20230831')
 
     pre_defined_cal_dir = [
         '/data1/pzhang/lwasolarview/caltables/',
