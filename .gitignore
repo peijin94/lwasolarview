@@ -5,6 +5,10 @@ __pycache__/
 
 casa-*.log
 
+caltables/*
+
+./*.csv
+
 # C extensions
 *.so
 

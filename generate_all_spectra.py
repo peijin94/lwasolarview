@@ -77,25 +77,26 @@ def get_cal_factor(cal_factor_file):
     cal_num = np.array(cal_num, dtype=float)
     return freq_num, cal_num
 
-def traverse_and_print_dates(directory):
+def traverse_and_print_dates(directory,startingday='20230828'):
     for root, dirs, _ in os.walk(directory):
         for name in dirs:
             full_path = os.path.join(root, name)
             data_directory = full_path
             year, month, day = extract_date_from_path(full_path)
             if year and month and day:
-                print("Processing {}".format(full_path))
-                #if True:
-                try:
-                    print(full_path)
-                    #one_day_proc(full_path)
-                except:
-                    print("Error with {}".format(full_path))
-                    pass
+                if ''.join([year, month, day]) >= startingday:
+                    print("Processing {}".format(full_path))
+                    #if True:
+                    try:
+                        #print(full_path)
+                        one_day_proc(full_path)
+                    except:
+                        print("Error with {}".format(full_path))
+                        pass
 
 import sys
 
-def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/nas6/ovro-lwa-data/calibrations/caltables_beam/'],
+def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/data1/pzhang/lwasolarview/caltables/'],
     add_logo=True, t1 = '2024-03-08', t2 = '2024-03-23'):
     if True:
         year, month, day = extract_date_from_path(full_path)
@@ -140,11 +141,11 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/nas6/ovro-lwa-data/calibra
                     cal_factor_file = None
 
                 if cal_strategy == 1:
-                    cal_factor_calfac_x = 5e4
-                    cal_factor_calfac_y = 5e4
+                    cal_factor_calfac_x = 1/5e4
+                    cal_factor_calfac_y = 1/5e4
                 else:
-                    cal_factor_calfac_x = None
-                    cal_factor_calfac_y = None
+                    cal_factor_calfac_x = 1
+                    cal_factor_calfac_y = 1
 
 
                 files = glob.glob(full_path + '/*')
@@ -159,8 +160,8 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/nas6/ovro-lwa-data/calibra
                 time_range_all =[ d.time_axis[0] , d.time_axis[-1]]
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
 
-                fig = d.plot( pol='I',minmaxpercentile=True,vmax2=0.5,vmin2=-0.5,
-                             freq_unit="MHz")
+                fig = d.plot(pol='I',minmaxpercentile=True,vmax2=0.5,vmin2=-0.5,
+                             freq_unit="MHz",plot_fast=False)
                 ax = fig.get_axes()[0]
                 locator = AutoDateLocator(minticks=2)
                 ax.xaxis.set_major_locator(locator)
@@ -192,9 +193,13 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/nas6/ovro-lwa-data/calibra
                 for i in range(len(hourly_ranges)):
                     thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
                                  hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
-                    fig = d.plot(pol='IP',timerange=thishour,plot_fast=True,minmaxpercentile=True,vmax2=0.5,vmin2=-0.5)
+                    fig = d.plot(pol='IP',timerange=thishour, freq_unit="MHz",
+                                 plot_fast=False,minmaxpercentile=True,
+                                 vmax2=0.5,vmin2=-0.5)
+                    # add suptitle the date of obs
+                    fig.suptitle(thishour[0], y=1.02)
                     os.makedirs('/common/lwa/spec_v2/hourly/{}{}'.format(year,month), exist_ok=True)
-                    fig.savefig('/common/lwa/spec_v2/hourly/{}{}/{}_{}.png'.format(year,month,day,i))
+                    fig.savefig('/common/lwa/spec_v2/hourly/{}{}/{}_{}.png'.format(year,month,day,i), bbox_inches='tight')
                     plt.close(fig)
             except:
                 print("Error with {}".format(full_path))
@@ -223,10 +228,10 @@ if __name__ == "__main__":
     parser.add_argument('--lastnday', type=int, help='Process the last n days data',default=-1)
     parser.add_argument('--runall', action='store_true', help='Process all historical data')
     parser.add_argument('--dir_cal', type=str, help='The directory for calibration factor', default='')
+    parser.add_argument('--startingday', type=str, help='The starting day for processing', default='20230829')
 
     pre_defined_cal_dir = [
-        '/lustre/bin.chen/realtime_pipeline/caltables_beam/',
-        '/nas6/ovro-lwa-data/calibrations/caltables_beam/'
+        '/data1/pzhang/lwasolarview/caltables/',
     ]
 
 
@@ -239,7 +244,7 @@ if __name__ == "__main__":
     if args.oneday:
         one_day_proc(args.onedaypath)
     elif args.runall:
-        traverse_and_print_dates(directory_path)
+        traverse_and_print_dates(directory_path, startingday=args.startingday)
     elif args.lasttwoday:
         # get yyyy, mm, dd of today and yesterday
         import datetime
