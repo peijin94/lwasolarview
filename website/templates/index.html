@@ -128,7 +128,7 @@
     }
     
     function updateExternalContent(date) {
-        var formattedDate = date.replaceAll('/', '');
+        var formattedDate = date.replaceAll('-', '/');
         //var iframeSrc = `https://ovsa.njit.edu/lwa-data/1min_images/${formattedDate}/movie_${date}.html`;
         var iframeSrc = `https://ovsa.njit.edu/lwa-data/qlook_images/slow/synop/${formattedDate}/movie_${date}.html`
         document.getElementById('externalContentFrame').src = iframeSrc;
