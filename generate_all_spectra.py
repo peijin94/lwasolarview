@@ -162,7 +162,7 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/data1/pzhang/lwasolarview/
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
 
                 fig = d.plot(pol='I',minmaxpercentile=True,vmax2=0.5,vmin2=-0.5,
-                             freq_unit="MHz",plot_fast=False)
+                             freq_unit="MHz",plot_fast=True)
                 ax = fig.get_axes()[0]
                 locator = AutoDateLocator(minticks=2)
                 ax.xaxis.set_major_locator(locator)
@@ -194,7 +194,7 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/data1/pzhang/lwasolarview/
                     thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
                                  hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
                     fig = d.plot(pol='IP',timerange=thishour, freq_unit="MHz",
-                                 plot_fast=False,minmaxpercentile=True,
+                                 plot_fast=True,minmaxpercentile=True,
                                  vmax2=0.5,vmin2=-0.5)
                     # add suptitle the date of obs
                     fig.suptitle(thishour[0], y=1.02)
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     parser.add_argument('--lastnday', type=int, help='Process the last n days data',default=-1)
     parser.add_argument('--runall', action='store_true', help='Process all historical data')
     parser.add_argument('--dir_cal', type=str, help='The directory for calibration factor', default='')
-    parser.add_argument('--startingday', type=str, help='The starting day for processing', default='20230831')
+    parser.add_argument('--startingday', type=str, help='The starting day for processing', default='20231012')
 
     pre_defined_cal_dir = [
         '/data1/pzhang/lwasolarview/caltables/',
