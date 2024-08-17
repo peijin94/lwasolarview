@@ -40,7 +40,7 @@ def get_external_image(filename):
 
 from glob import glob
 
-def find_images_for_date(date):
+def find_images_for_date(date, use_synoptic_spec=True):
     # Split the date into year, month, and day
     yyyy, mm, dd = date.split('-')
 
@@ -54,7 +54,10 @@ def find_images_for_date(date):
 
     if os.path.exists(daily_fname):
         # If the file exists, return the path relative to EXTERNAL_IMAGES_FOLDER
-        image_paths.append( 'daily/' + f'{yyyy}{mm}{dd}.png')
+        if use_synoptic_spec:
+            image_paths.append( 'daily/' + f'fig-OVSAs_spec_{yyyy}{mm}{dd}.png')
+        else:
+            image_paths.append( 'daily/' + f'{yyyy}{mm}{dd}.png')
         hourly_dir = f'{EXTERNAL_IMAGES_FOLDER}hourly/{yyyy}{mm}/'
         hourly_files = glob(hourly_dir + f'/{dd}_*.png')
         image_paths.extend( [ f'hourly/{yyyy}{mm}/' + os.path.basename(f) for f in hourly_files])
