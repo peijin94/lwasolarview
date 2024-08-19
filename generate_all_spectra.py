@@ -164,7 +164,7 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                 hourly_ranges = divide_time_in_hours(time_range_all[0], time_range_all[1], hour_length=1 / 24)
 
                 if use_synoptic_spec:
-                    ovsp.plot(datetime(2024, 7, 31), figdir='/common/lwa/spec_v2/daily/', add_logo=add_logo,
+                    ovsp.plot(datetime(2024, 7, 31), figdir='/common/lwa/spec_v2/daily/', figname=f'{year}{month}{day}.png', add_logo=add_logo,
                               combine=True, clip=[10, 99.5])
                 else:
                     fig = d.plot(pol='I', minmaxpercentile=True, vmax2=0.5, vmin2=-0.5,
