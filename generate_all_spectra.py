@@ -9,7 +9,7 @@ plt.ioff()
 from copy import copy
 from matplotlib import colors
 import matplotlib.pyplot as plt
-from datetime import datetime
+import datetime
 from matplotlib.dates import AutoDateFormatter, AutoDateLocator, num2date
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from astropy.time import Time
@@ -98,7 +98,7 @@ def traverse_and_print_dates(directory,startingday='20230828'):
 import sys
 
 def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/data1/pzhang/lwasolarview/caltables/'],
-    add_logo=True, t1 = '2024-03-08', t2 = '2024-03-23', use_synoptic_spec=True):
+    add_logo=True, t1 = '2024-03-08', t2 = '2024-03-23', use_synoptic_spec=False):
     if True:
         year, month, day = extract_date_from_path(full_path)
 
@@ -163,7 +163,7 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/data1/pzhang/lwasolarview/
                 hourly_ranges = divide_time_in_hours(time_range_all[0],time_range_all[1], hour_length=1/24)
 
                 if use_synoptic_spec:
-                    ovsp.plot(datetime(2024, 7, 31), figdir='/common/lwa/spec_v2/daily/',add_logo=add_logo, combine=True)
+                    ovsp.plot(datetime.datetime(int(year), int(month), int(day)), figdir='/common/lwa/spec_v2/daily/',add_logo=add_logo, combine=True)
                 else:
                     fig = d.plot(pol='I',minmaxpercentile=True,vmax2=0.5,vmin2=-0.5,
                                  freq_unit="MHz",plot_fast=True)
@@ -197,16 +197,22 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs = ['/data1/pzhang/lwasolarview/
 
 
                 for i in range(len(hourly_ranges)):
-                    thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
-                                 hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
-                    fig = d.plot(pol='IP',timerange=thishour, freq_unit="MHz",
-                                 plot_fast=True,minmaxpercentile=True,
-                                 vmax2=0.5,vmin2=-0.5)
-                    # add suptitle the date of obs
-                    fig.suptitle(thishour[0], y=1.02)
-                    os.makedirs('/common/lwa/spec_v2/hourly/{}{}'.format(year,month), exist_ok=True)
-                    fig.savefig('/common/lwa/spec_v2/hourly/{}{}/{}_{}.png'.format(year,month,day,i), bbox_inches='tight')
-                    plt.close(fig)
+                    try:
+                        thishour = [ hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
+                                    hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S') ]
+                        fig = d.plot(pol='IP',timerange=thishour, freq_unit="MHz",
+                                    plot_fast=True,minmaxpercentile=True,
+                                    vmax2=0.5,vmin2=-0.5)
+                        # add suptitle the date of obs
+                        fig.suptitle(thishour[0], y=1.02)
+                        os.makedirs('/common/lwa/spec_v2/hourly/{}{}'.format(year,month), exist_ok=True)
+                        fig.savefig('/common/lwa/spec_v2/hourly/{}{}/{}_{}.png'.format(year,month,day,i), bbox_inches='tight')
+                        plt.close(fig)
+                    except:
+                        print(traceback.format_exc())
+                        print("Error with {}".format(full_path))
+                        # print error msg
+                        print( "Error: ", sys.exc_info()[0] )
             except:
                 print(traceback.format_exc())
                 print("Error with {}".format(full_path))
@@ -226,6 +232,7 @@ if __name__ == "__main__":
 
     # parse the arg directory path as input
     import argparse
+    from datetime import date as ddate
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('datahome', metavar='D', type=str, help='an integer for the accumulator', nargs='?',
                          default='/nas5/ovro-lwa-data/beam/beam-data/')
@@ -254,8 +261,7 @@ if __name__ == "__main__":
         traverse_and_print_dates(directory_path, startingday=args.startingday)
     elif args.lasttwoday:
         # get yyyy, mm, dd of today and yesterday
-        import datetime
-        today = datetime.date.today()
+        today = ddate.today()
         yesterday = today - datetime.timedelta(days=1)
         yyyy_today, mm_today, dd_today = today.strftime("%Y"), today.strftime("%m"), today.strftime("%d")
         yyyy_yesterday, mm_yesterday, dd_yesterday = yesterday.strftime("%Y"), yesterday.strftime("%m"), yesterday.strftime("%d")
@@ -263,8 +269,7 @@ if __name__ == "__main__":
         one_day_proc(os.path.join(directory_path, yyyy_yesterday+mm_yesterday, 'beam'+yyyy_yesterday+mm_yesterday+dd_yesterday), cal_dirs = pre_defined_cal_dir)
         one_day_proc(os.path.join(directory_path, yyyy_today+mm_today, 'beam'+yyyy_today+mm_today+dd_today), cal_dirs = pre_defined_cal_dir)
     elif args.lastnday>0:
-        import datetime
-        today = datetime.date.today()
+        today = ddate.today()
         for i in range(args.lastnday):
             today = today - datetime.timedelta(days=1)
             yyyy, mm, dd = today.strftime("%Y"), today.strftime("%m"), today.strftime("%d")
