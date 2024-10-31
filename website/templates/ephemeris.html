@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OVRO Sun Ephemeris</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .data-container {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .data-row {
+            margin: 10px 0;
+        }
+        .label {
+            font-weight: bold;
+            display: inline-block;
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>OVRO Sun Ephemeris</h1>
+    <div class="data-container">
+        <div class="data-row">
+            <span class="label">Coord</span>
+            <span>37.2332N 118.2872W</span>
+        </div>
+        <div class="data-row">
+            <span class="label">Current UTC Time:</span>
+            <span>{{ current_time }}</span>
+        </div>
+        <div class="data-row">
+            <span class="label">Sun Position (Alt-Az):</span>
+            <span>{{ alt }} / {{ az }}</span>
+        </div>
+        <div class="data-row">
+            <span class="label">Sunrise (UTC):</span>
+            <span>{{ sunrise }}</span>
+        </div>
+        <div class="data-row">
+            <span class="label">Sunset (UTC):</span>
+            <span>{{ sunset }}</span>
+        </div>
+    </div>
+</body>
+</html>

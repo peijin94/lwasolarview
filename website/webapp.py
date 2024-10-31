@@ -1,5 +1,8 @@
 from flask import Flask, render_template, request, send_from_directory
 import os
+import ephem
+from datetime import datetime
+import pytz
 app = Flask(__name__)
 from flask import jsonify
 
@@ -67,6 +70,50 @@ def find_images_for_date(date, use_synoptic_spec=True):
     else:
         # If the file doesn't exist, you can return a default image or an error
         return []  # Replace with your default image path
+
+
+
+# ... (existing imports and code) ...
+
+# Add this new route
+@app.route('/ephm')
+def ephemeris():
+    # Create OVRO observer
+    ovro = ephem.Observer()
+    ovro.lat = '37.2332'  # North
+    ovro.lon = '-118.2872'  # West
+    ovro.elevation = 1222  # meters
+    
+    # Get current UTC time
+    current_utc = datetime.now(pytz.UTC)
+    ovro.date = current_utc
+    
+    # Calculate sun position
+    sun = ephem.Sun()
+    sun.compute(ovro)
+    
+    # Convert altitude and azimuth to degrees
+    alt_deg = float(sun.alt) * 180/ephem.pi
+    az_deg = float(sun.az) * 180/ephem.pi
+    
+    # Calculate sunrise and sunset
+    next_sunrise = ovro.next_rising(sun).datetime()
+    next_sunset = ovro.next_setting(sun).datetime()
+    
+    # If next sunrise is tomorrow, also get today's sunset
+    prev_sunrise = ovro.previous_rising(sun).datetime()
+    prev_sunset = ovro.previous_setting(sun).datetime()
+    
+    # Format times
+    sunrise_time = prev_sunrise if prev_sunrise.date() == current_utc.date() else next_sunrise
+    sunset_time = prev_sunset if prev_sunset.date() == current_utc.date() else next_sunset
+    
+    return render_template('ephemeris.html',
+                         current_time=current_utc.strftime('%H:%M:%S'),
+                         alt=f"{alt_deg:.1f}°",
+                         az=f"{az_deg:.1f}°",
+                         sunrise=sunrise_time.strftime('%H:%M:%S'),
+                         sunset=sunset_time.strftime('%H:%M:%S'))
 
 if __name__ == '__main__':
     from waitress import serve
