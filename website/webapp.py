@@ -1,7 +1,8 @@
 from flask import Flask, render_template, request, send_from_directory
 import os
 import ephem
-from datetime import datetime
+from datetime import datetime, timedelta
+
 import pytz
 app = Flask(__name__)
 from flask import jsonify
@@ -43,7 +44,7 @@ def get_external_image(filename):
 
 from glob import glob
 
-def find_images_for_date(date, use_synoptic_spec=True):
+def find_images_for_date(date, use_synoptic_spec=False):
     # Split the date into year, month, and day
     yyyy, mm, dd = date.split('-')
 
@@ -59,6 +60,7 @@ def find_images_for_date(date, use_synoptic_spec=True):
         # If the file exists, return the path relative to EXTERNAL_IMAGES_FOLDER
         if use_synoptic_spec:
             image_paths.append( 'daily/' + f'fig-OVSAs_spec_{yyyy}{mm}{dd}.png')
+            # https://ovsa.njit.edu/SynopticImg/eovsamedia/eovsa-browser/2025/05/31/fig-OVSAs_spec_20250531.jpg
         else:
             image_paths.append( 'daily/' + f'{yyyy}{mm}{dd}.png')
         hourly_dir = f'{EXTERNAL_IMAGES_FOLDER}hourly/{yyyy}{mm}/'
@@ -72,48 +74,61 @@ def find_images_for_date(date, use_synoptic_spec=True):
         return []  # Replace with your default image path
 
 
-
-# ... (existing imports and code) ...
-
-# Add this new route
 @app.route('/ephm')
 def ephemeris():
     # Create OVRO observer
     ovro = ephem.Observer()
-    ovro.lat = '37.2332'  # North
-    ovro.lon = '-118.2872'  # West
+    ovro.lat = '37.2332'
+    ovro.lon = '-118.2872'
     ovro.elevation = 1222  # meters
-    
+
     # Get current UTC time
     current_utc = datetime.now(pytz.UTC)
     ovro.date = current_utc
-    
+
     # Calculate sun position
     sun = ephem.Sun()
     sun.compute(ovro)
-    
-    # Convert altitude and azimuth to degrees
-    alt_deg = float(sun.alt) * 180/ephem.pi
-    az_deg = float(sun.az) * 180/ephem.pi
-    
-    # Calculate sunrise and sunset
+
+    alt_deg = float(sun.alt) * 180 / ephem.pi
+    az_deg = float(sun.az) * 180 / ephem.pi
+
+    # Sunrise/sunset
     next_sunrise = ovro.next_rising(sun).datetime()
     next_sunset = ovro.next_setting(sun).datetime()
-    
-    # If next sunrise is tomorrow, also get today's sunset
     prev_sunrise = ovro.previous_rising(sun).datetime()
     prev_sunset = ovro.previous_setting(sun).datetime()
-    
-    # Format times
+
     sunrise_time = prev_sunrise if prev_sunrise.date() == current_utc.date() else next_sunrise
-    sunset_time = prev_sunset if prev_sunset.date() == current_utc.date() else next_sunset
-    
+    #sunset_time = prev_sunset if prev_sunset.date() == current_utc.date() else next_sunset
+    sunset_time = next_sunset
+
+    # Helper to find when altitude crosses 12°
+    def find_altitude_crossing(observer, start_time, direction='rising', target_alt_deg=12.0):
+        observer.date = start_time
+        step = ephem.minute  # 1-minute step
+        max_minutes = 120  # Look within next 2 hours
+
+        for _ in range(max_minutes):
+            sun.compute(observer)
+            alt = float(sun.alt) * 180 / ephem.pi
+            if (direction == 'rising' and alt >= target_alt_deg) or (direction == 'setting' and alt <= target_alt_deg):
+                return observer.date.datetime()
+            observer.date += step
+        return None  # fallback
+
+    # Compute 12° crossings
+    sun_12up = find_altitude_crossing(ovro, sunrise_time, direction='rising')
+    sun_12down = find_altitude_crossing(ovro, sunset_time - timedelta(hours=2), direction='setting')
+
     return render_template('ephemeris.html',
-                         current_time=current_utc.strftime('%H:%M:%S'),
-                         alt=f"{alt_deg:.1f}°",
-                         az=f"{az_deg:.1f}°",
-                         sunrise=sunrise_time.strftime('%H:%M:%S'),
-                         sunset=sunset_time.strftime('%H:%M:%S'))
+                           current_time=current_utc.strftime('%y-%m-%d %H:%M:%S'),
+                           alt=f"{alt_deg:.1f}°",
+                           az=f"{az_deg:.1f}°",
+                           sunrise=sunrise_time.strftime('%y-%m-%d %H:%M:%S'),
+                           sunset=sunset_time.strftime('%y-%m-%d %H:%M:%S'),
+                           sun_12up=sun_12up.strftime('%y-%m-%d %H:%M:%S') if sun_12up else "N/A",
+                           sun_12down=sun_12down.strftime('%y-%m-%d %H:%M:%S') if sun_12down else "N/A")
 
 if __name__ == '__main__':
     from waitress import serve

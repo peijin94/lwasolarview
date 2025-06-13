@@ -7,7 +7,6 @@
     <link rel="shortcut icon" href="/lwa/static/img/favicon.ico" type="image/x-icon">
 
     <title>OVRO Solar Viewer</title>
-    <!-- Bootstrap CSS -->
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
 
     <style>
@@ -23,24 +22,52 @@
             cursor: pointer;
         }
         #contentContainer {
-        display: flex;
-        justify-content: space-between;
-    }
-    #dailyImageSection, #externalContentFrame {
-        width: 49%;
-    }
-    #externalContentFrame {
-        border: none; /* Optional: removes the border of the iframe */
-    }
-    #websiteLogo {
-        height: 100px; /* Example height */
-        /* Add other styling properties as needed */
-    }
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap; /* Allow wrapping for smaller screens */
+        }
+        #dailyImageSection, #videoPlayerContainer {
+            width: 100%; /* Full width on small screens */
+        }
+        @media (min-width: 992px) { /* On larger screens (desktops) */
+            #dailyImageSection, #videoPlayerContainer {
+                width: 49%;
+            }
+        }
+        #websiteLogo {
+            height: 100px;
+        }
+
+        /* --- VIDEO PLAYER STYLES START --- */
+        #videoPlayer {
+            width: 100%;
+            background-color: #000;
+            border-radius: 5px;
+        }
+        .video-controls {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .video-controls .custom-button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        /* Removed #videoInfo p styling as the element will be removed */
+
+        /* New styles for the seek slider */
+        #videoSeekSlider {
+            width: 100%;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+        /* --- VIDEO PLAYER STYLES END --- */
+
     </style>
 
 </head>
 
-<!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-J6J5GSLKJ7"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -57,47 +84,61 @@
 
     <header>
         <img src="/lwa/static/img/logo.jpg" alt="Logo" id="websiteLogo">
-        <!-- ... other header elements ... -->
     </header>
         <h1 class="text-center">OVRO LWA Solar Observation Preview</h1>
         <div class="row justify-content-center">
             <div class="col-6 text-center">
                 <label for="dateSelector">Available:</label>
                 <select id="dateSelector" class="custom-select" onchange="dateSelected()">
-                    <!-- Options will be added here by JavaScript -->
-                </select>
+                    </select>
             </div>
             <div class="col-6 text-center">
                 <label for="datePicker">Select a day (mm/dd/yyyy):</label>
-                
+
                 <input type="date" id="datePicker">
 
                 <button class="custom-button" onclick="changeDay(-1)"> -1Day</button>
                 <button class="custom-button" onclick="changeDay(1)"> +1Day</button>
-                
+
                 <button class="custom-button" onclick="fetchImage()">Show Images</button>
 
             </div>
         </div>
     </div>
 
-    <div id="contentContainer">
+    <div id="contentContainer" class="container">
         <div id="dailyImageSection">
             <h2>Daily spectrogram</h2>
-            <!-- The daily image will be added here -->
+            </div>
+
+        <div id="videoPlayerContainer">
+            <h2>Daily Movie</h2>
+            <video id="videoPlayer" preload="auto"></video>
+            <div id="videoError" class="alert alert-danger" style="display: none;" role="alert">
+                Video for the selected date is not available.
+            </div>
+
+            <div class="video-controls text-center">
+                <input type="range" id="videoSeekSlider" value="0" min="0" step="0.01">
+                <button id="prevFrameBtn" class="custom-button" disabled> &lt; Prev Frame</button>
+                <button id="playPauseBtn" class="custom-button" disabled>Play</button>
+                <button id="nextFrameBtn" class="custom-button" disabled>Next Frame &gt;</button>
+                <div class="mt-2">
+                    <label for="fpsInput">FPS:</label>
+                    <input type="number" id="fpsInput" value="10" style="width: 60px;">
+                </div>
+            </div>
         </div>
-        <iframe id="externalContentFrame" style="height: 800px" src="">
-            <!-- External content will be loaded here -->
-        </iframe>
-    </div>
-    <div id="imageGallerySection">
+        </div>
+
+    <div id="imageGallerySection" class="container mt-4">
         <h2>Hourly spectrogram</h2>
         <div id="imageGallery" class="row">
-            <!-- Gallery images will be added here -->
-        </div>
+            </div>
     </div>
 
     <script>
+        // --- PAGE SCRIPT START ---
         function fetchImage() {
             var date = document.getElementById('datePicker').value;
             var xhr = new XMLHttpRequest();
@@ -114,135 +155,229 @@
                     }
                 }
             };
-            // update the external content
+            // update the video content
             updateExternalContent(date);
             xhr.send('date=' + date);
         }
 
         function displayNoDataMessage() {
-        var dailyImageSection = document.getElementById('dailyImageSection');
-        var imageGallery = document.getElementById('imageGallery');
+            var dailyImageSection = document.getElementById('dailyImageSection');
+            var imageGallery = document.getElementById('imageGallery');
 
-        dailyImageSection.innerHTML = '<h2>Daily spectrogram</h2><p> ... No data this day</p>';
-        imageGallery.innerHTML = '<p> ... No data this day</p>';
-    }
-    
-    function updateExternalContent(date) {
-        var formattedDate = date.replaceAll('-', '/');
-        //var iframeSrc = `https://ovsa.njit.edu/lwa-data/1min_images/${formattedDate}/movie_${date}.html`;
-        var iframeSrc = `https://ovsa.njit.edu/lwa-data/qlook_images/slow/synop/${formattedDate}/movie_${date}.html`
-        document.getElementById('externalContentFrame').src = iframeSrc;
-    }
-    function updateImageDisplay(imageUrls) {
-        // sort img  urls
-        imageUrls.sort();
-        var dailyImageSection = document.getElementById('dailyImageSection');
-        var imageGallery = document.getElementById('imageGallery');
-
-        // Clear existing content
-        dailyImageSection.innerHTML = '<h2>Daily spectrogram</h2>';
-        imageGallery.innerHTML = '';
-
-        // Set the daily image if available
-        if (imageUrls.length > 0) {
-            var dailyImg = new Image();
-            dailyImg.src = imageUrls[0];
-            dailyImg.classList.add('gallery-image');
-            dailyImg.onclick = function() {
-                window.open(imageUrls[0], '_blank');
-            };
-            dailyImageSection.appendChild(dailyImg);
-
-                // Create and append the link for the .fits file
-            var fitsUrl = imageUrls[0].replace(".png", ".fits").replace("/daily", "/fits");
-            var fitsLink = document.createElement('a');
-            fitsLink.href = fitsUrl;
-            fitsLink.textContent = "Download FITS file";
-            fitsLink.style.display = "block"; // Ensures the link appears on a new line
-            fitsLink.target = "_blank"; // Opens the link in a new tab
-            dailyImageSection.appendChild(fitsLink);
+            dailyImageSection.innerHTML = '<h2>Daily spectrogram</h2><p> ... No data this day</p>';
+            imageGallery.innerHTML = '<p> ... No data this day</p>';
         }
 
-        // Set the gallery images
-        for (var i = 1; i < imageUrls.length; i++) {
-            var img = new Image();
-            img.src = imageUrls[i];
-            img.classList.add('gallery-image', 'col-6', 'col-md-4', 'col-lg-3');
-            // Using a closure to ensure the correct URL is used
-            (function(url) {
-                img.onclick = function() {
-                    window.open(url, '_blank');
-                };
-            })(imageUrls[i]);
-            imageGallery.appendChild(img);
-        }
-    }
-        
+        // --- MODIFIED FUNCTION ---
+        // This function now targets the video player instead of the iframe.
+        function updateExternalContent(date) {
+            const yyyymmdd = date.replaceAll('-', '');
+            const videoPlayer = document.getElementById('videoPlayer');
+            const videoError = document.getElementById('videoError');
+            const videoSeekSlider = document.getElementById('videoSeekSlider');
 
-    function fetchAvailableDates() {
-        fetch('/lwa/get-avail-day')
-            .then(response => response.json())
-            .then(dates => {
-                var selector = document.getElementById('dateSelector');
-                dates.sort().reverse(); // Reversing the order of dates
-                dates.forEach(date => {
-                    var option = new Option(date, date);
-                    selector.add(option);
+            // Hide previous errors
+            videoError.style.display = 'none';
+
+            const videoUrl = `https://ovsa.njit.edu/lwa-data/qlook_daily/movies/slow_hdf_movie_${yyyymmdd}.mp4`;
+
+            videoPlayer.src = videoUrl;
+            videoPlayer.load(); // Important: load the new source
+            videoSeekSlider.value = 0; // Reset slider position
+        }
+
+        function updateImageDisplay(imageUrls) {
+            imageUrls.sort();
+            var dailyImageSection = document.getElementById('dailyImageSection');
+            var imageGallery = document.getElementById('imageGallery');
+            dailyImageSection.innerHTML = '<h2>Daily spectrogram</h2>';
+            imageGallery.innerHTML = '';
+
+            if (imageUrls.length > 0) {
+                var dailyImg = new Image();
+                dailyImg.src = imageUrls[0];
+                dailyImg.classList.add('img-fluid'); // Use Bootstrap's responsive image class
+                dailyImg.onclick = function() { window.open(imageUrls[0], '_blank'); };
+                dailyImageSection.appendChild(dailyImg);
+
+                var fitsUrl = imageUrls[0].replace(".png", ".fits").replace("/daily", "/fits");
+                var fitsLink = document.createElement('a');
+                fitsLink.href = fitsUrl;
+                fitsLink.textContent = "Download FITS file";
+                fitsLink.style.display = "block";
+                fitsLink.target = "_blank";
+                dailyImageSection.appendChild(fitsLink);
+            }
+
+            for (var i = 1; i < imageUrls.length; i++) {
+                var img = new Image();
+                img.src = imageUrls[i];
+                img.classList.add('img-thumbnail', 'col-6', 'col-md-4', 'col-lg-3'); // Bootstrap thumbnail style
+                (function(url) {
+                    img.onclick = function() { window.open(url, '_blank'); };
+                })(imageUrls[i]);
+                imageGallery.appendChild(img);
+            }
+        }
+
+        function fetchAvailableDates() {
+            fetch('/lwa/get-avail-day')
+                .then(response => response.json())
+                .then(dates => {
+                    var selector = document.getElementById('dateSelector');
+                    dates.sort().reverse();
+                    dates.forEach(date => {
+                        var option = new Option(date, date);
+                        selector.add(option);
+                    });
                 });
-            });
-    }
+        }
 
         function dateSelected() {
-        var selectedDate = document.getElementById('dateSelector').value;
-        document.getElementById('datePicker').value = selectedDate;
+            var selectedDate = document.getElementById('dateSelector').value;
+            document.getElementById('datePicker').value = selectedDate;
+            fetchImage();
+        }
+
+        function setYesterdaysDate() {
+            var today = new Date();
+            var yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            var dd = String(yesterday.getDate()).padStart(2, '0');
+            var mm = String(yesterday.getMonth() + 1).padStart(2, '0');
+            var yyyy = yesterday.getFullYear();
+            yesterday = yyyy + '-' + mm + '-' + dd;
+            document.getElementById('datePicker').value = yesterday;
+        }
+
+        function changeDay(offset) {
+            var currentDate = new Date(document.getElementById('datePicker').value);
+            currentDate.setDate(currentDate.getDate() + offset);
+            var dd = String(currentDate.getDate()).padStart(2, '0');
+            var mm = String(currentDate.getMonth() + 1).padStart(2, '0');
+            var yyyy = currentDate.getFullYear();
+            var newDate = yyyy + '-' + mm + '-' + dd;
+            document.getElementById('datePicker').value = newDate;
+            fetchImage();
+        }
+
+        // Initial page load calls
+        setYesterdaysDate();
+        fetchAvailableDates();
         fetchImage();
+        updateExternalContent(document.getElementById('datePicker').value);
+        // --- PAGE SCRIPT END ---
+
+// --- VIDEO PLAYER SCRIPT START ---
+document.addEventListener('DOMContentLoaded', () => {
+    const videoPlayer = document.getElementById('videoPlayer');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const prevFrameBtn = document.getElementById('prevFrameBtn');
+    const nextFrameBtn = document.getElementById('nextFrameBtn');
+    // const timeDisplay = document.getElementById('time-display'); // Removed
+    const fpsInput = document.getElementById('fpsInput');
+    const videoError = document.getElementById('videoError');
+    const videoSeekSlider = document.getElementById('videoSeekSlider'); // New element
+
+    let frameRate = 10; // This is used for stepping through frames, not direct playback speed
+    let seeking = false; // Flag to prevent timeupdate from interfering with manual seeking
+
+    // --- Event Listeners ---
+    fpsInput.addEventListener('change', () => {
+        const newFps = parseInt(fpsInput.value, 10);
+        if (!isNaN(newFps) && newFps > 0) {
+            frameRate = newFps; // Update the frameRate for manual stepping
+            // Set the video's playback rate based on the new FPS
+            // Assuming the video is designed to play at a "normal" speed of 30fps
+            videoPlayer.playbackRate = newFps / 30;
+        }
+    });
+
+    playPauseBtn.addEventListener('click', () => {
+        if (videoPlayer.paused) { videoPlayer.play(); } else { videoPlayer.pause(); }
+    });
+
+    videoPlayer.addEventListener('play', () => { playPauseBtn.textContent = 'Pause'; });
+    videoPlayer.addEventListener('pause', () => { playPauseBtn.textContent = 'Play'; });
+
+    nextFrameBtn.addEventListener('click', () => stepFrame(1));
+    prevFrameBtn.addEventListener('click', () => stepFrame(-1));
+
+    videoPlayer.addEventListener('timeupdate', () => {
+        if (!seeking) {
+            // Update slider as video plays
+            videoSeekSlider.value = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+        }
+        // updateTimeDisplay(); // Removed
+    });
+
+    videoPlayer.addEventListener('loadedmetadata', () => {
+        // Set max value for slider once video metadata is loaded (duration is known)
+        videoSeekSlider.max = 100;
+        videoSeekSlider.value = 0; // Reset slider
+    });
+
+    videoSeekSlider.addEventListener('mousedown', () => {
+        seeking = true;
+        if (!videoPlayer.paused) {
+            videoPlayer.pause();
+        }
+    });
+
+    videoSeekSlider.addEventListener('input', () => {
+        // Update video current time as slider is dragged
+        const seekTime = (videoSeekSlider.value / 100) * videoPlayer.duration;
+        videoPlayer.currentTime = seekTime;
+    });
+
+    videoSeekSlider.addEventListener('mouseup', () => {
+        seeking = false;
+        // Optionally, play the video after seeking if it was playing before
+        // if (wasPlaying) { videoPlayer.play(); } // Need to store previous state
+    });
+
+    // Enable controls when a video can be played
+    videoPlayer.addEventListener('canplay', () => {
+        playPauseBtn.disabled = false;
+        prevFrameBtn.disabled = false;
+        nextFrameBtn.disabled = false;
+        videoSeekSlider.disabled = false; // Enable seek slider
+        videoError.style.display = 'none'; // Hide error if video loads
+        // Set initial playback rate when video is ready
+        videoPlayer.playbackRate = parseInt(fpsInput.value, 10) / 30; // Initialize playback rate
+    });
+
+    // Handle video loading errors
+    videoPlayer.addEventListener('error', () => {
+        playPauseBtn.disabled = true;
+        prevFrameBtn.disabled = true;
+        nextFrameBtn.disabled = true;
+        videoSeekSlider.disabled = true; // Disable seek slider on error
+        videoError.style.display = 'block'; // Show error message
+        // timeDisplay.textContent = 'Time: 0.000s | Frame: 0'; // Removed
+    });
+
+
+    // --- Core Functions ---
+    function stepFrame(direction) {
+        if (videoPlayer.paused === false) videoPlayer.pause();
+
+        const frameTime = 1 / frameRate; // Use the stored frameRate for stepping
+        const newTime = videoPlayer.currentTime + (direction * frameTime);
+        videoPlayer.currentTime = Math.max(0, Math.min(newTime, videoPlayer.duration));
     }
-    // Function to calculate yesterday's date
-    function setYesterdaysDate() {
-        var today = new Date();
-        var yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
 
-        var dd = String(yesterday.getDate()).padStart(2, '0');
-        var mm = String(yesterday.getMonth() + 1).padStart(2, '0'); //January is 0!
-        var yyyy = yesterday.getFullYear();
-
-        yesterday = yyyy + '-' + mm + '-' + dd;
-        document.getElementById('datePicker').value = yesterday;
-    }
-
-
-    function changeDay(offset) {
-        var currentDate = new Date(document.getElementById('datePicker').value);
-        currentDate.setDate(currentDate.getDate() + offset);
-
-        var dd = String(currentDate.getDate()).padStart(2, '0');
-        var mm = String(currentDate.getMonth() + 1).padStart(2, '0');
-        var yyyy = currentDate.getFullYear();
-
-        var newDate = yyyy + '-' + mm + '-' + dd;
-        document.getElementById('datePicker').value = newDate;
-
-        fetchImage(); // Fetch images for the new date
-    }
-
-        // Call this function when the page loads
-        // Call these functions when the page loads
-    setYesterdaysDate(); // Set yesterday's date in the date input
-    fetchAvailableDates();
-    fetchImage(); // Fetch image for yesterday's date
-    updateExternalContent(document.getElementById('datePicker').value);
-
+    // function updateTimeDisplay() { // Removed
+    //     const currentTime = videoPlayer.currentTime;
+    //     const currentFrame = Math.round(currentTime * frameRate);
+    //     timeDisplay.textContent = `Time: ${currentTime.toFixed(3)}s | Frame: ${currentFrame}`;
+    // }
+});
+// --- VIDEO PLAYER SCRIPT END ---
     </script>
-    
-    
-    
 
-    <!-- Bootstrap JS, Popper.js, and jQuery -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.6/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
-
-
 </html>
