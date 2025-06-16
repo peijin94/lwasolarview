@@ -120,9 +120,9 @@
 
             <div class="video-controls text-center">
                 <input type="range" id="videoSeekSlider" value="0" min="0" step="0.01">
-                <button id="prevFrameBtn" class="custom-button" disabled> &lt; Prev Frame</button>
+                <button id="prevFrameBtn" class="custom-button" disabled> < Prev Frame</button>
                 <button id="playPauseBtn" class="custom-button" disabled>Play</button>
-                <button id="nextFrameBtn" class="custom-button" disabled>Next Frame &gt;</button>
+                <button id="nextFrameBtn" class="custom-button" disabled>Next Frame ></button>
                 <div class="mt-2">
                     <label for="fpsInput">FPS:</label>
                     <input type="number" id="fpsInput" value="10" style="width: 60px;">
@@ -179,7 +179,7 @@
             // Hide previous errors
             videoError.style.display = 'none';
 
-            const videoUrl = `https://ovsa.njit.edu/lwa-data/qlook_daily/movies/slow_hdf_movie_${yyyymmdd}.mp4`;
+            const videoUrl = `https://ovsa.njit.edu/lwa-data/qlook_daily/movies/${yyyymmdd.substring(0,4)}/ovro-lwa-352.synop_mfs_image_I_movie_${yyyymmdd}.mp4`;
 
             videoPlayer.src = videoUrl;
             videoPlayer.load(); // Important: load the new source

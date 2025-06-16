@@ -98,7 +98,8 @@ def traverse_and_print_dates(directory, startingday='20230828'):
 
 
 def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/caltables/'],
-                 add_logo=True, t1='2024-03-08', t2='2024-03-23', use_synoptic_spec=False
+                 add_logo=True, t1='2024-03-08', t2='2024-03-23', use_synoptic_spec=False,
+                 save_dir="/common/lwa/spec/"
                  ):
     if True:
         year, month, day = extract_date_from_path(full_path)
@@ -155,79 +156,23 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                 files.sort()
                 d = dspec.Dspec()
 
-                d.read(files, source='lwa', timebin=8, freqbin=freq_bin, stokes='IV', freqrange=[15, 85],
+                d.read(files, source='lwa', timebin=8, freqbin=freq_bin, stokes='I', freqrange=[15, 85],
                        flux_factor_file=cal_factor_file,
                        flux_factor_calfac_x=cal_factor_calfac_x,
                        flux_factor_calfac_y=cal_factor_calfac_y)
 
+                # Ensure the output directory exists
+                fits_dir = os.path.join(save_dir, 'fits', str(year))
+                os.makedirs(fits_dir, exist_ok=True)
+
+                # Save FITS file
                 d.tofits(
-                    '/common/lwa/spec_v2/fits/{}{}{}.fits'.format(year, month, day))
-                time_range_all = [d.time_axis[0], d.time_axis[-1]]
-                hourly_ranges = divide_time_in_hours(
-                    time_range_all[0], time_range_all[1], hour_length=1 / 24)
-
-                if use_synoptic_spec:
-                    ovsp.plot(datetime(2024, 7, 31), figdir='/common/lwa/spec_v2/daily/', figname=f'{year}{month}{day}.png', add_logo=add_logo,
-                              combine=True, clip=[10, 99.5])
-                else:
-                    fig = d.plot(pol='I', minmaxpercentile=True, vmax2=0.5, vmin2=-0.5,
-                                 freq_unit="MHz", plot_fast=True)
-                    ax = fig.get_axes()[0]
-                    locator = AutoDateLocator(minticks=2)
-                    ax.xaxis.set_major_locator(locator)
-                    # ax1.xaxis.set_major_formatter(AutoDateFormatter(locator))
-                    formatter = AutoDateFormatter(locator)
-                    formatter.scaled[1 / 24] = '%H:%M'
-                    formatter.scaled[1 / (24 * 60)] = '%H:%M'
-                    ax.xaxis.set_major_formatter(formatter)
-                    ax.set_title(d.time_axis[0].strftime('%Y-%m-%d %H:%M:%S') + ' - ' + d.time_axis[-1].strftime(
-                        '%Y-%m-%d %H:%M:%S'))
-
-                    if add_logo:
-                        ax_logo1 = fig.add_axes([0.89, 0.91, 0.15, 0.08])
-                        img1 = base64.b64decode(njit_logo_str)
-                        img1 = io.BytesIO(img1)
-                        img1 = mpimg.imread(img1, format='png')
-                        ax_logo1.imshow(img1)
-                        ax_logo1.axis('off')
-
-                        ax_logo2 = fig.add_axes([0.81, 0.91, 0.15, 0.09])
-                        img2 = base64.b64decode(nsf_logo)
-                        img2 = io.BytesIO(img2)
-                        img2 = mpimg.imread(img2, format='png')
-                        ax_logo2.imshow(img2)
-                        ax_logo2.axis('off')
-
-                    fig.savefig(
-                        '/common/lwa/spec_v2/daily/{}{}{}.png'.format(year, month, day))
-
-                for i in range(len(hourly_ranges)):
-                    try:
-                        thishour = [hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
-                                    hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S')]
-                        fig = d.plot(pol='IP', timerange=thishour, freq_unit="MHz",
-                                     plot_fast=True, minmaxpercentile=True,
-                                     vmax2=0.5, vmin2=-0.5)
-                        # add suptitle the date of obs
-                        fig.suptitle(thishour[0], y=1.02)
-                        os.makedirs(
-                            '/common/lwa/spec_v2/hourly/{}{}'.format(year, month), exist_ok=True)
-                        fig.savefig('/common/lwa/spec_v2/hourly/{}{}/{}_{}.png'.format(
-                            year, month, day, i), bbox_inches='tight')
-                        plt.close(fig)
-                    except:
-                        print(traceback.format_exc())
-                        print("Error with {}".format(full_path))
-                        # print error msg
-                        print("Error: ", sys.exc_info()[0])
+                    save_dir+'/fits/{}/ovro-lwa-256.beam.{}-{}-{}.fits'.format(year, year, month, day))
             except:
                 print(traceback.format_exc())
                 print("Error with {}".format(full_path))
                 # print error msg
-                print("Error: ", sys.exc_info()[0])
-#    except:
-#        print("Error with {}".format(full_path))
-
+                print( "Error: ", sys.exc_info()[0] )
 
 if __name__ == "__main__":
     """
