@@ -97,82 +97,106 @@ def traverse_and_print_dates(directory, startingday='20230828'):
                         pass
 
 
+
 def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/caltables/'],
                  add_logo=True, t1='2024-03-08', t2='2024-03-23', use_synoptic_spec=False,
                  save_dir="/common/lwa/spec/"
                  ):
-    if True:
-        year, month, day = extract_date_from_path(full_path)
+    year, month, day = extract_date_from_path(full_path)
 
-        # compare year, month, day with t1 and t2
-        cal_strategy = 0, 1, 2
-        if '-'.join([year, month, day]) < t1:
-            cal_strategy = 0  # use caltable
-        elif '-'.join([year, month, day]) >= t1 and '-'.join([year, month, day]) <= t2:
-            cal_strategy = 1  # use caltable and defivde by cal factor 5e4
-        elif '-'.join([year, month, day]) > t2:
-            cal_strategy = 2  # do not use caltable
+    # compare year, month, day with t1 and t2
+    cal_strategy = 0, 1, 2
+    if '-'.join([year, month, day]) < t1:
+        cal_strategy = 0  # use caltable
+    elif '-'.join([year, month, day]) >= t1 and '-'.join([year, month, day]) <= t2:
+        cal_strategy = 1  # use caltable and divide by cal factor 5e4
+    elif '-'.join([year, month, day]) > t2:
+        cal_strategy = 2  # do not use caltable
 
-        if year and month and day:
-            print("[", Time.now().datetime, "], Processing {}".format(full_path))
-            try:
+    if year and month and day:
+        print("[", Time.now().datetime, "], Processing {}".format(full_path))
+        try:
+            str_this_day = ''.join([year, month, day])
 
-                str_this_day = ''.join([year, month, day])
+            if len(cal_dirs) > 0 and (cal_strategy != 2):  # do calibration
+                do_calib = True
+                cal_files = []
+                for cal_dir in cal_dirs:
+                    cal_files += glob.glob(cal_dir + '/*.csv')
+                cal_files.sort(key=lambda x: x.split('/')
+                               [-1].split('_')[0])
 
-                if len(cal_dirs) > 0 and (cal_strategy != 2):  # do calibration
-                    do_calib = True
-                    cal_files = []
-                    for cal_dir in cal_dirs:
-                        cal_files += glob.glob(cal_dir + '/*.csv')
-                    cal_files.sort(key=lambda x: x.split('/')
-                                   [-1].split('_')[0])
+                # find latest cal-list
+                date_cal_lst = [cal_factor_csv_f.split('/')[-1].split('_')[0]
+                                for cal_factor_csv_f in cal_files]
 
-                    # find latest cal-list
+                idx_cal = 0
+                for date_cal in date_cal_lst:
+                    if date_cal <= str_this_day:
+                        cal_fname = date_cal
+                        idx_cal += 1
+                    else:
+                        break
+                print("Using calibration factor from {}".format(
+                    cal_files[idx_cal - 1]))
+                cal_factor_file = cal_files[idx_cal - 1]
+            else:
+                cal_factor_file = None
 
-                    date_cal_lst = [cal_factor_csv_f.split('/')[-1].split('_')[0]
-                                    for cal_factor_csv_f in cal_files]
+            if cal_strategy == 1:
+                cal_factor_calfac_x = 1 / 5e4
+                cal_factor_calfac_y = 1 / 5e4
+            else:
+                cal_factor_calfac_x = 1
+                cal_factor_calfac_y = 1
 
-                    idx_cal = 0
-                    for date_cal in date_cal_lst:
-                        if date_cal <= str_this_day:
-                            cal_fname = date_cal
-                            idx_cal += 1
-                        else:
-                            break
-                    print("Using calibration factor from {}".format(
-                        cal_files[idx_cal - 1]))
-                    cal_factor_file = cal_files[idx_cal - 1]
-                else:
-                    cal_factor_file = None
+            files = glob.glob(full_path + '/*')
+            files.sort()
+            d = dspec.Dspec()
 
-                if cal_strategy == 1:
-                    cal_factor_calfac_x = 1 / 5e4
-                    cal_factor_calfac_y = 1 / 5e4
-                else:
-                    cal_factor_calfac_x = 1
-                    cal_factor_calfac_y = 1
+            # Find background file
+            background_found = False
+            background_file = None
+            for j, file1 in enumerate(files[:-1]):
+                hms1 = file1.split('_')[1]
+                hms2 = files[j+1].split('_')[1]
 
-                files = glob.glob(full_path + '/*')
-                files.sort()
-                d = dspec.Dspec()
+                hour1 = int(hms1[0:2])
+                minute1 = int(hms1[2:4])
+                hour2 = int(hms2[0:2])
+                minute2 = int(hms2[2:4])
 
-                d.read(files, source='lwa', timebin=4, freqbin=freq_bin, stokes='I', freqrange=[15, 85],
-                       flux_factor_file=cal_factor_file,
-                       flux_factor_calfac_x=cal_factor_calfac_x,
-                       flux_factor_calfac_y=cal_factor_calfac_y)
+                if hour1 > 19 and hour1 < 22:
+                    file_time1 = datetime.datetime(int(year), int(month), int(day), hour1, minute1, 0)
+                    file_time2 = datetime.datetime(int(year), int(month), int(day), hour2, minute2, 0)
 
-                # Ensure the output directory exists
-                fits_dir = os.path.join(save_dir, 'fits', str(year))
-                os.makedirs(fits_dir, exist_ok=True)
+                    if (file_time2 - file_time1).seconds < 300:  # 5 minutes
+                        background_file = file1
+                        background_found = True
+                        print(f"Background file found: {file1}, next file: {files[j+1]}")
+                        break
 
-                # Save FITS file
-                d.tofits(
-                    save_dir+'/fits/{}/ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, year, month, day))
-            except:
-                print(traceback.format_exc())
-                print("Error with {}".format(full_path))
-                # print error msg
-                print( "Error: ", sys.exc_info()[0] )
+            if not background_found:
+                print(f"No background file found in {full_path}")
+                return  # Exit the function if no background file is found
+
+            d.read(background_file, source='lwa', timebin=4, freqbin=freq_bin, stokes='I', freqrange=[15, 85],
+                   flux_factor_file=cal_factor_file,
+                   flux_factor_calfac_x=cal_factor_calfac_x,
+                   flux_factor_calfac_y=cal_factor_calfac_y)
+
+            # Ensure the output directory exists
+            fits_dir = os.path.join(save_dir, 'fits', str(year))
+            os.makedirs(fits_dir, exist_ok=True)
+
+            # Save FITS file
+            d.tofits(
+                save_dir+'/fits_bcgrd/{}/ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, year, month, day))
+        except:
+            print(traceback.format_exc())
+            print("Error with {}".format(full_path))
+            print("Error: ", sys.exc_info()[0])
+
 
 if __name__ == "__main__":
     """
