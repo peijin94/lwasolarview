@@ -97,7 +97,6 @@ def traverse_and_print_dates(directory, startingday='20230828'):
                         pass
 
 
-
 def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/caltables/'],
                  add_logo=True, t1='2024-03-08', t2='2024-03-23', use_synoptic_spec=False,
                  save_dir="/common/lwa/spec/"
@@ -167,26 +166,29 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                 minute2 = int(hms2[2:4])
 
                 if hour1 > 19 and hour1 < 22:
-                    file_time1 = datetime.datetime(int(year), int(month), int(day), hour1, minute1, 0)
-                    file_time2 = datetime.datetime(int(year), int(month), int(day), hour2, minute2, 0)
+                    file_time1 = datetime.datetime(
+                        int(year), int(month), int(day), hour1, minute1, 0)
+                    file_time2 = datetime.datetime(
+                        int(year), int(month), int(day), hour2, minute2, 0)
 
                     if (file_time2 - file_time1).seconds < 300:  # 5 minutes
                         background_file = file1
                         background_found = True
-                        print(f"Background file found: {file1}, next file: {files[j+1]}")
+                        print(
+                            f"Background file found: {file1}, next file: {files[j+1]}")
                         break
 
             if not background_found:
                 print(f"No background file found in {full_path}")
                 return  # Exit the function if no background file is found
 
-            d.read(background_file, source='lwa', timebin=4, freqbin=freq_bin, stokes='I', freqrange=[15, 85],
+            d.read([background_file], source='lwa', timebin=4, freqbin=freq_bin, stokes='I', freqrange=[15, 85],
                    flux_factor_file=cal_factor_file,
                    flux_factor_calfac_x=cal_factor_calfac_x,
                    flux_factor_calfac_y=cal_factor_calfac_y)
 
             # Ensure the output directory exists
-            fits_dir = os.path.join(save_dir, 'fits', str(year))
+            fits_dir = os.path.join(save_dir, 'fits_bcgrd', str(year))
             os.makedirs(fits_dir, exist_ok=True)
 
             # Save FITS file
