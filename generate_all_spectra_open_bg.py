@@ -99,7 +99,7 @@ def traverse_and_print_dates(directory, startingday='20230828'):
 
 def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/caltables/'],
                  add_logo=True, t1='2024-03-08', t2='2024-03-23', use_synoptic_spec=False,
-                 save_dir="/common/lwa/spec/"
+                 save_dir="/sbdata/lwa-spec-tmp/spec_lv15/"
                  ):
     year, month, day = extract_date_from_path(full_path)
 
