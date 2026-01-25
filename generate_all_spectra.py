@@ -5,7 +5,7 @@ import base64
 from ovrolwasolar.visualization import njit_logo_str, nsf_logo
 import traceback
 import glob
-from suncasa.utils import ovsas_spectrogram as ovsp
+from suncasa.utils import ovsa_spectrogram as ovsp
 from suncasa.dspec import dspec
 import numpy as np
 from astropy.time import Time
