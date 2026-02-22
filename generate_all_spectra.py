@@ -2,6 +2,7 @@ import sys
 import matplotlib.image as mpimg
 import io
 import base64
+import gc
 from ovrolwasolar.visualization import njit_logo_str, nsf_logo
 import traceback
 import glob
@@ -79,6 +80,43 @@ def get_cal_factor(cal_factor_file):
     return freq_num, cal_num
 
 
+def load_xhand_book(xhand_book_file):
+    """Load the crosshand delay book CSV.
+
+    Format (no header): YYYYMMDD, delay_ns
+    Each row means "use this delay from that date onward until the next row."
+    Returns a sorted list of (date_int, delay_ns) tuples.
+    """
+    entries = []
+    with open(xhand_book_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split(',')
+            date_int = int(parts[0].strip())
+            delay_ns = float(parts[1].strip())
+            entries.append((date_int, delay_ns))
+    entries.sort(key=lambda x: x[0])
+    return entries
+
+
+def get_xhand_delay(xhand_entries, str_this_day):
+    """Return the crosshand delay (ns) for str_this_day (YYYYMMDD string).
+
+    Uses the entry whose date is <= str_this_day (nearest past entry).
+    Returns 0.0 if no matching entry is found.
+    """
+    day_int = int(str_this_day)
+    delay = 0.0
+    for date_int, delay_ns in xhand_entries:
+        if date_int <= day_int:
+            delay = delay_ns
+        else:
+            break
+    return delay
+
+
 def find_background_file(files, year, month, day):
     """Find background file between 19:00-22:00 with 5-minute gap to next file"""
     background_found = False
@@ -110,23 +148,24 @@ def find_background_file(files, year, month, day):
 
 def traverse_and_print_dates(directory, startingday='20230828', **kwargs):
     for root, dirs, _ in os.walk(directory):
-        for name in dirs:
+        for name in sorted(dirs):
             full_path = os.path.join(root, name)
-            data_directory = full_path
             year, month, day = extract_date_from_path(full_path)
             if year and month and day:
                 if ''.join([year, month, day]) >= startingday:
                     print("Processing {}".format(full_path))
                     try:
                         one_day_proc(full_path, **kwargs)
-                    except:
+                    except Exception:
                         print("Error with {}".format(full_path))
-                        pass
+                    finally:
+                        gc.collect()
 
 
 def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/caltables/'],
                  add_logo=True, t1='2024-03-08', t2='2024-03-23', use_synoptic_spec=False,
-                 mode='original', save_dir=None, stokes='IV', timebin=8):
+                 mode='original', save_dir=None, stokes='IV', timebin=8,
+                 use_xhand_book=False, xhand_delay_book='./xhand_book.csv'):
     """
     Process one day of data with configurable modes
     
@@ -140,6 +179,11 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
         Stokes parameters ('IV' for original, 'I' for open/background)
     timebin : int
         Time binning (8 for original, 4 for open/background)
+    use_xhand_book : bool
+        If True, look up the crosshand delay from xhand_delay_book for this day
+        and pass it to d.read(); otherwise xhand_delay=0 is used.
+    xhand_delay_book : str
+        Path to the crosshand delay book CSV (YYYYMMDD, delay_ns per row).
     """
     
     # Set default save directories based on mode
@@ -162,100 +206,109 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
     elif '-'.join([year, month, day]) > t2:
         cal_strategy = 2  # do not use caltable
 
-    if year and month and day:
-        print("[", Time.now().datetime, "], Processing {} in {} mode".format(full_path, mode))
-        try:
-            str_this_day = ''.join([year, month, day])
+    if not (year and month and day):
+        return
 
-            if len(cal_dirs) > 0 and (cal_strategy != 2):  # do calibration
-                do_calib = True
-                cal_files = []
-                for cal_dir in cal_dirs:
-                    cal_files += glob.glob(cal_dir + '/*.csv')
-                cal_files.sort(key=lambda x: x.split('/')
-                               [-1].split('_')[0])
+    print("[", Time.now().datetime, "], Processing {} in {} mode".format(full_path, mode))
+    d = None
+    try:
+        str_this_day = ''.join([year, month, day])
 
-                # find latest cal-list
-                date_cal_lst = [cal_factor_csv_f.split('/')[-1].split('_')[0]
-                                for cal_factor_csv_f in cal_files]
+        if len(cal_dirs) > 0 and (cal_strategy != 2):  # do calibration
+            cal_files = []
+            for cal_dir in cal_dirs:
+                cal_files += glob.glob(cal_dir + '/*.csv')
+            cal_files.sort(key=lambda x: x.split('/')[-1].split('_')[0])
 
-                idx_cal = 0
-                for date_cal in date_cal_lst:
-                    if date_cal <= str_this_day:
-                        cal_fname = date_cal
-                        idx_cal += 1
-                    else:
-                        break
-                print("Using calibration factor from {}".format(
-                    cal_files[idx_cal - 1]))
-                cal_factor_file = cal_files[idx_cal - 1]
-            else:
-                cal_factor_file = None
+            date_cal_lst = [f.split('/')[-1].split('_')[0] for f in cal_files]
+            idx_cal = 0
+            for date_cal in date_cal_lst:
+                if date_cal <= str_this_day:
+                    idx_cal += 1
+                else:
+                    break
+            print("Using calibration factor from {}".format(cal_files[idx_cal - 1]))
+            cal_factor_file = cal_files[idx_cal - 1]
+        else:
+            cal_factor_file = None
 
-            if cal_strategy == 1:
-                cal_factor_calfac_x = 1 / 5e4
-                cal_factor_calfac_y = 1 / 5e4
-            else:
-                cal_factor_calfac_x = 1
-                cal_factor_calfac_y = 1
+        if cal_strategy == 1:
+            cal_factor_calfac_x = 1 / 5e4
+            cal_factor_calfac_y = 1 / 5e4
+        else:
+            cal_factor_calfac_x = 1
+            cal_factor_calfac_y = 1
 
-            files = glob.glob(full_path + '/*')
-            files.sort()
-            d = dspec.Dspec()
+        # Resolve crosshand delay for this day
+        if use_xhand_book:
+            try:
+                xhand_entries = load_xhand_book(xhand_delay_book)
+                xhand_delay = get_xhand_delay(xhand_entries, str_this_day)
+                print("Using xhand delay {:.3f} ns for {}".format(xhand_delay, str_this_day))
+            except Exception as e:
+                print("Failed to load xhand book: {}. Using xhand_delay=0.".format(e))
+                xhand_delay = 0.0
+        else:
+            xhand_delay = 0.0
 
-            # Handle different processing modes
-            if mode == 'background':
-                # Find background file
-                background_file, background_found = find_background_file(files, year, month, day)
-                
-                if not background_found:
-                    print("No background file found in {}".format(full_path))
-                    return  # Exit the function if no background file is found
-                
-                # Process only background file
-                d.read([background_file], source='lwa', timebin=timebin, freqbin=freq_bin, 
-                       stokes=stokes, freqrange=[15, 85],
-                       flux_factor_file=cal_factor_file,
-                       flux_factor_calfac_x=cal_factor_calfac_x,
-                       flux_factor_calfac_y=cal_factor_calfac_y)
-                
-                # Save FITS file for background
-                fits_dir = os.path.join(save_dir, 'fits_bcgrd', str(year))
+        files = glob.glob(full_path + '/*')
+        files = [f for f in files if os.path.isfile(f)]
+        files.sort()
+
+        if not files:
+            print("I cannot find any file. Abort.")
+            return
+
+        d = dspec.Dspec()
+        _xhand = xhand_delay if xhand_delay != 0.0 else None
+        _read_kwargs = dict(
+            source='lwa', timebin=timebin, freqbin=freq_bin,
+            stokes=stokes, freqrange=[15, 85],
+            flux_factor_file=cal_factor_file,
+            flux_factor_calfac_x=cal_factor_calfac_x,
+            flux_factor_calfac_y=cal_factor_calfac_y,
+            xhand_delay=_xhand,
+        )
+
+        # Handle different processing modes
+        if mode == 'background':
+            background_file, background_found = find_background_file(files, year, month, day)
+            if not background_found:
+                print("No background file found in {}".format(full_path))
+                return
+
+            d.read([background_file], **_read_kwargs)
+
+            fits_dir = os.path.join(save_dir, 'fits_bcgrd', str(year))
+            os.makedirs(fits_dir, exist_ok=True)
+            d.tofits(os.path.join(fits_dir,
+                     'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)))
+
+        else:  # original or open mode
+            d.read(files, **_read_kwargs)
+
+            if mode == 'original':
+                d.tofits(os.path.join(save_dir, 'fits', '{}{}{}.fits'.format(year, month, day)))
+            else:  # open mode
+                fits_dir = os.path.join(save_dir, 'fits', str(year))
                 os.makedirs(fits_dir, exist_ok=True)
-                d.tofits(os.path.join(save_dir, 'fits_bcgrd', str(year), 
-                                    'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)))
-                
-            else:  # original or open mode
-                # Process all files
-                d.read(files, source='lwa', timebin=timebin, freqbin=freq_bin, 
-                       stokes=stokes, freqrange=[15, 85],
-                       flux_factor_file=cal_factor_file,
-                       flux_factor_calfac_x=cal_factor_calfac_x,
-                       flux_factor_calfac_y=cal_factor_calfac_y)
+                d.tofits(os.path.join(fits_dir,
+                         'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)))
 
-                # Save FITS file
-                if mode == 'original':
-                    d.tofits(os.path.join(save_dir, 'fits', '{}{}{}.fits'.format(year, month, day)))
-                else:  # open mode
-                    fits_dir = os.path.join(save_dir, 'fits', str(year))
-                    os.makedirs(fits_dir, exist_ok=True)
-                    d.tofits(os.path.join(save_dir, 'fits', str(year), 
-                                        'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)))
+            if mode == 'original':
+                time_range_all = [d.time_axis[0], d.time_axis[-1]]
+                hourly_ranges = divide_time_in_hours(
+                    time_range_all[0], time_range_all[1], hour_length=1 / 24)
 
-                # Additional processing for original mode
-                if mode == 'original':
-                    time_range_all = [d.time_axis[0], d.time_axis[-1]]
-                    hourly_ranges = divide_time_in_hours(
-                        time_range_all[0], time_range_all[1], hour_length=1 / 24)
-
-                    if use_synoptic_spec:
-                        ovsp.plot(datetime.datetime(2024, 7, 31), 
-                                 figdir=os.path.join(save_dir, 'daily/'), 
-                                 figname='{}{}{}.png'.format(year, month, day), 
-                                 add_logo=add_logo, combine=True, clip=[10, 99.5])
-                    else:
-                        fig = d.plot(pol='I', minmaxpercentile=True, vmax2=0.5, vmin2=-0.5,
-                                     freq_unit="MHz", plot_fast=True)
+                if use_synoptic_spec:
+                    ovsp.plot(datetime.datetime(2024, 7, 31),
+                              figdir=os.path.join(save_dir, 'daily/'),
+                              figname='{}{}{}.png'.format(year, month, day),
+                              add_logo=add_logo, combine=True, clip=[10, 99.5])
+                else:
+                    fig = d.plot(pol='I', minmaxpercentile=True, vmax2=0.5, vmin2=-0.5,
+                                 freq_unit="MHz", plot_fast=True)
+                    try:
                         ax = fig.get_axes()[0]
                         locator = AutoDateLocator(minticks=2)
                         ax.xaxis.set_major_locator(locator)
@@ -263,48 +316,63 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                         formatter.scaled[1 / 24] = '%H:%M'
                         formatter.scaled[1 / (24 * 60)] = '%H:%M'
                         ax.xaxis.set_major_formatter(formatter)
-                        ax.set_title(d.time_axis[0].strftime('%Y-%m-%d %H:%M:%S') + ' - ' + 
-                                   d.time_axis[-1].strftime('%Y-%m-%d %H:%M:%S'))
+                        ax.set_title(d.time_axis[0].strftime('%Y-%m-%d %H:%M:%S') + ' - ' +
+                                     d.time_axis[-1].strftime('%Y-%m-%d %H:%M:%S'))
 
                         if add_logo:
+                            # Decode logo images once and discard buffers immediately
+                            img1_buf = io.BytesIO(base64.b64decode(njit_logo_str))
+                            img1 = mpimg.imread(img1_buf, format='png')
                             ax_logo1 = fig.add_axes([0.89, 0.91, 0.15, 0.08])
-                            img1 = base64.b64decode(njit_logo_str)
-                            img1 = io.BytesIO(img1)
-                            img1 = mpimg.imread(img1, format='png')
                             ax_logo1.imshow(img1)
                             ax_logo1.axis('off')
+                            del img1, img1_buf
 
+                            img2_buf = io.BytesIO(base64.b64decode(nsf_logo))
+                            img2 = mpimg.imread(img2_buf, format='png')
                             ax_logo2 = fig.add_axes([0.81, 0.91, 0.15, 0.09])
-                            img2 = base64.b64decode(nsf_logo)
-                            img2 = io.BytesIO(img2)
-                            img2 = mpimg.imread(img2, format='png')
                             ax_logo2.imshow(img2)
                             ax_logo2.axis('off')
+                            del img2, img2_buf
 
-                        fig.savefig(os.path.join(save_dir, 'daily', '{}{}{}.png'.format(year, month, day)))
+                        fig.savefig(os.path.join(save_dir, 'daily',
+                                                 '{}{}{}.png'.format(year, month, day)))
+                    finally:
+                        plt.close(fig)
+                        del fig
 
-                    # Generate hourly plots
-                    for i in range(len(hourly_ranges)):
-                        try:
-                            thishour = [hourly_ranges[i][0].datetime.strftime('%Y-%m-%dT%H:%M:%S'),
-                                        hourly_ranges[i][1].datetime.strftime('%Y-%m-%dT%H:%M:%S')]
-                            fig = d.plot(pol='IP', timerange=thishour, freq_unit="MHz",
-                                         plot_fast=True, minmaxpercentile=True,
-                                         vmax2=0.5, vmin2=-0.5)
-                            fig.suptitle(thishour[0], y=1.02)
-                            hourly_dir = os.path.join(save_dir, 'hourly', '{}{}'.format(year, month))
-                            os.makedirs(hourly_dir, exist_ok=True)
-                            fig.savefig(os.path.join(hourly_dir, '{}_{}.png'.format(day, i)), bbox_inches='tight')
+                # Generate hourly plots
+                hourly_dir = os.path.join(save_dir, 'hourly', '{}{}'.format(year, month))
+                os.makedirs(hourly_dir, exist_ok=True)
+                for i, (t_start, t_end) in enumerate(hourly_ranges):
+                    fig = None
+                    try:
+                        thishour = [t_start.datetime.strftime('%Y-%m-%dT%H:%M:%S'),
+                                    t_end.datetime.strftime('%Y-%m-%dT%H:%M:%S')]
+                        fig = d.plot(pol='IP', timerange=thishour, freq_unit="MHz",
+                                     plot_fast=True, minmaxpercentile=True,
+                                     vmax2=0.5, vmin2=-0.5)
+                        fig.suptitle(thishour[0], y=1.02)
+                        fig.savefig(os.path.join(hourly_dir, '{}_{}.png'.format(day, i)),
+                                    bbox_inches='tight')
+                    except Exception:
+                        print(traceback.format_exc())
+                        print("Error with hourly plot for {}".format(full_path))
+                    finally:
+                        if fig is not None:
                             plt.close(fig)
-                        except:
-                            print(traceback.format_exc())
-                            print("Error with hourly plot for {}".format(full_path))
-                            print("Error: ", sys.exc_info()[0])
+                            del fig
 
-        except:
-            print(traceback.format_exc())
-            print("Error with {}".format(full_path))
-            print("Error: ", sys.exc_info()[0])
+    except Exception:
+        print(traceback.format_exc())
+        print("Error with {}".format(full_path))
+        print("Error: ", sys.exc_info()[0])
+    finally:
+        # Always release the Dspec object and its large arrays, then force GC
+        if d is not None:
+            del d
+        plt.close('all')
+        gc.collect()
 
 
 if __name__ == "__main__":
@@ -343,6 +411,8 @@ if __name__ == "__main__":
     parser.add_argument('--freq_bin', type=int, help='Frequency binning', default=4)
     parser.add_argument('--add_logo', action='store_true', help='Add logos to plots')
     parser.add_argument('--use_synoptic_spec', action='store_true', help='Use synoptic spectrogram')
+    parser.add_argument('--xhand_delay_book', type=str, help='Xhand delay book file', default="./xhand_book.csv")
+    parser.add_argument('--use_xhand_book', action='store_true', help='Use Xhand delay book')
 
     pre_defined_cal_dir = ['/data1/pzhang/lwasolarview/caltables/']
 
@@ -358,7 +428,7 @@ if __name__ == "__main__":
     
     if args.timebin is None:
         if args.mode == 'original':
-            args.timebin = 8
+            args.timebin = 4
         else:  # open or background
             args.timebin = 4
     
@@ -378,7 +448,9 @@ if __name__ == "__main__":
         'save_dir': args.save_dir,
         'stokes': args.stokes,
         'timebin': args.timebin,
-        'use_synoptic_spec': args.use_synoptic_spec
+        'use_synoptic_spec': args.use_synoptic_spec,
+        'use_xhand_book': args.use_xhand_book,
+        'xhand_delay_book': args.xhand_delay_book,
     }
     
     if args.oneday:
