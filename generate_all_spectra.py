@@ -16,6 +16,7 @@ import datetime
 import matplotlib.pyplot as plt
 import os
 import re
+import shutil
 
 # display off
 import matplotlib
@@ -165,7 +166,8 @@ def traverse_and_print_dates(directory, startingday='20230828', **kwargs):
 def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/caltables/'],
                  add_logo=True, t1='2024-03-08', t2='2024-03-23', use_synoptic_spec=False,
                  mode='original', save_dir=None, stokes='IV', timebin=8,
-                 use_xhand_book=False, xhand_delay_book='./xhand_book.csv'):
+                 use_xhand_book=False, xhand_delay_book='./xhand_book.csv',
+                 use_remote_file=False, tmp_hdf_dir='./tmp_hdf_666'):
     """
     Process one day of data with configurable modes
     
@@ -259,44 +261,62 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
             print("I cannot find any file. Abort.")
             return
 
-        d = dspec.Dspec()
-        _xhand = xhand_delay if xhand_delay != 0.0 else None
-        _read_kwargs = dict(
-            source='lwa', timebin=timebin, freqbin=freq_bin,
-            stokes=stokes, freqrange=[15, 85],
-            flux_factor_file=cal_factor_file,
-            flux_factor_calfac_x=cal_factor_calfac_x,
-            flux_factor_calfac_y=cal_factor_calfac_y,
-            xhand_delay=_xhand,
-        )
+        # Optionally copy HDF files to a local temp dir for processing (faster I/O than remote)
+        _tmp_copies = []
+        if use_remote_file:
+            process_files = files
+        else:
+            tmp_dir = os.path.abspath(tmp_hdf_dir)
+            os.makedirs(tmp_dir, exist_ok=True)
+            # Remove all existing files in the temp folder
+            for p in os.listdir(tmp_dir):
+                pabs = os.path.join(tmp_dir, p)
+                if os.path.isfile(pabs):
+                    os.remove(pabs)
+                elif os.path.isdir(pabs):
+                    shutil.rmtree(pabs)
+            # Copy needed HDF files into tmp dir
+            for f in files:
+                dest = os.path.join(tmp_dir, os.path.basename(f))
+                shutil.copy2(f, dest)
+                _tmp_copies.append(dest)
+            process_files = _tmp_copies
 
-        # Handle different processing modes
-        if mode == 'background':
-            background_file, background_found = find_background_file(files, year, month, day)
-            if not background_found:
-                print("No background file found in {}".format(full_path))
-                return
+        try:
+            d = dspec.Dspec()
+            _xhand = xhand_delay if xhand_delay != 0.0 else None
+            _read_kwargs = dict(
+                source='lwa', timebin=timebin, freqbin=freq_bin,
+                stokes=stokes, freqrange=[15, 85],
+                flux_factor_file=cal_factor_file,
+                flux_factor_calfac_x=cal_factor_calfac_x,
+                flux_factor_calfac_y=cal_factor_calfac_y,
+                xhand_delay=_xhand,
+            )
 
-            d.read([background_file], **_read_kwargs)
-
-            fits_dir = os.path.join(save_dir, 'fits_bcgrd', str(year))
-            os.makedirs(fits_dir, exist_ok=True)
-            d.tofits(os.path.join(fits_dir,
-                     'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)))
-
-        else:  # original or open mode
-            d.read(files, **_read_kwargs)
-
-            if mode == 'original':
-                d.tofits(os.path.join(save_dir, 'fits', '{}{}{}.fits'.format(year, month, day)))
-            else:  # open mode
-                fits_dir = os.path.join(save_dir, 'fits', str(year))
+            # Handle different processing modes
+            if mode == 'background':
+                background_file, background_found = find_background_file(files, year, month, day)
+                if not background_found:
+                    print("No background file found in {}".format(full_path))
+                    return
+                d.read([process_files[files.index(background_file)]], **_read_kwargs)
+                fits_dir = os.path.join(save_dir, 'fits_bcgrd', str(year))
                 os.makedirs(fits_dir, exist_ok=True)
                 d.tofits(os.path.join(fits_dir,
                          'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)))
+            else:  # original or open mode
+                d.read(process_files, **_read_kwargs)
+                if mode == 'original':
+                    d.tofits(os.path.join(save_dir, 'fits', '{}{}{}.fits'.format(year, month, day)))
+                else:  # open mode
+                    fits_dir = os.path.join(save_dir, 'fits', str(year))
+                    os.makedirs(fits_dir, exist_ok=True)
+                    d.tofits(os.path.join(fits_dir,
+                             'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)))
 
-            if mode == 'original':
-                time_range_all = [d.time_axis[0], d.time_axis[-1]]
+                if mode == 'original':
+                    time_range_all = [d.time_axis[0], d.time_axis[-1]]
                 hourly_ranges = divide_time_in_hours(
                     time_range_all[0], time_range_all[1], hour_length=1 / 24)
 
@@ -320,7 +340,6 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                                      d.time_axis[-1].strftime('%Y-%m-%d %H:%M:%S'))
 
                         if add_logo:
-                            # Decode logo images once and discard buffers immediately
                             img1_buf = io.BytesIO(base64.b64decode(njit_logo_str))
                             img1 = mpimg.imread(img1_buf, format='png')
                             ax_logo1 = fig.add_axes([0.89, 0.91, 0.15, 0.08])
@@ -336,7 +355,7 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                             del img2, img2_buf
 
                         fig.savefig(os.path.join(save_dir, 'daily',
-                                                 '{}{}{}.png'.format(year, month, day)))
+                                                '{}{}{}.png'.format(year, month, day)))
                     finally:
                         plt.close(fig)
                         del fig
@@ -362,6 +381,15 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                         if fig is not None:
                             plt.close(fig)
                             del fig
+
+        finally:
+            # Remove copied temp files when using local tmp dir
+            if _tmp_copies:
+                for p in _tmp_copies:
+                    try:
+                        os.remove(p)
+                    except OSError:
+                        pass
 
     except Exception:
         print(traceback.format_exc())
@@ -413,6 +441,10 @@ if __name__ == "__main__":
     parser.add_argument('--use_synoptic_spec', action='store_true', help='Use synoptic spectrogram')
     parser.add_argument('--xhand_delay_book', type=str, help='Xhand delay book file', default="./xhand_book.csv")
     parser.add_argument('--use_xhand_book', action='store_true', help='Use Xhand delay book')
+    parser.add_argument('--use-remote-file', dest='use_remote_file', action='store_true',
+                        help='Read HDF files directly from source path; if False (default), copy to tmp dir first')
+    parser.add_argument('--tmp-hdf-dir', dest='tmp_hdf_dir', type=str, default='./tmp_hdf_666',
+                        help='Temp folder for local HDF copies when not using remote files (default: ./tmp_hdf_666)')
 
     pre_defined_cal_dir = ['/data1/pzhang/lwasolarview/caltables/']
 
@@ -451,6 +483,8 @@ if __name__ == "__main__":
         'use_synoptic_spec': args.use_synoptic_spec,
         'use_xhand_book': args.use_xhand_book,
         'xhand_delay_book': args.xhand_delay_book,
+        'use_remote_file': args.use_remote_file,
+        'tmp_hdf_dir': args.tmp_hdf_dir,
     }
     
     if args.oneday:

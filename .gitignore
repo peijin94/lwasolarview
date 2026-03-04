@@ -170,3 +170,6 @@ cython_debug/
 # suncasa source code
 suncasa-src/
 tmp_plt/
+tmp_hdf_666/
+
+tmp_*

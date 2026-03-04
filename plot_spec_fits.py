@@ -1,8 +1,8 @@
 """
-plot_spec_fits.py  –  Plot a two-panel dynamic spectrum from an LWA FITS file.
+plot_spec_fits.py  --  Plot a two-panel dynamic spectrum from an LWA FITS file.
 
 Upper panel : Stokes I (flux density)
-Lower panel : V/I   (fractional circular polarisation, –1 … +1)
+Lower panel : V/I   (fractional circular polarisation, -1 ... +1)
 
 Usage
 -----
