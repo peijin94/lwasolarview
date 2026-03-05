@@ -383,13 +383,20 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                             del fig
 
         finally:
-            # Remove copied temp files when using local tmp dir
-            if _tmp_copies:
-                for p in _tmp_copies:
-                    try:
-                        os.remove(p)
-                    except OSError:
-                        pass
+            # Clean up temp dir when using local copies
+            if not use_remote_file:
+                tmp_dir = os.path.abspath(tmp_hdf_dir)
+                if os.path.isdir(tmp_dir):
+                    for p in os.listdir(tmp_dir):
+                        pabs = os.path.join(tmp_dir, p)
+                        try:
+                            if os.path.isfile(pabs):
+                                os.remove(pabs)
+                            elif os.path.isdir(pabs):
+                                shutil.rmtree(pabs)
+                        except OSError:
+                            # Best-effort cleanup; ignore failures
+                            pass
 
     except Exception:
         print(traceback.format_exc())
@@ -443,8 +450,8 @@ if __name__ == "__main__":
     parser.add_argument('--use_xhand_book', action='store_true', help='Use Xhand delay book')
     parser.add_argument('--use-remote-file', dest='use_remote_file', action='store_true',
                         help='Read HDF files directly from source path; if False (default), copy to tmp dir first')
-    parser.add_argument('--tmp-hdf-dir', dest='tmp_hdf_dir', type=str, default='./tmp_hdf_666',
-                        help='Temp folder for local HDF copies when not using remote files (default: ./tmp_hdf_666)')
+    parser.add_argument('--tmp-hdf-dir', dest='tmp_hdf_dir', type=str, default='/data1/pzhang/tmp_hdf_666/',
+                        help='Temp folder for local HDF copies when not using remote files (default: /data1/pzhang/tmp_hdf_666/)')
 
     pre_defined_cal_dir = ['/data1/pzhang/lwasolarview/caltables/']
 
