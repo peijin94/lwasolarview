@@ -173,3 +173,6 @@ tmp_plt/
 tmp_hdf_666/
 
 tmp_*
+
+# macOS Finder metadata
+.DS_Store
