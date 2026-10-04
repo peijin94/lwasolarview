@@ -169,7 +169,12 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                  use_xhand_book=False, xhand_delay_book='./xhand_book.csv',
                  use_remote_file=False, tmp_hdf_dir='./tmp_hdf_666'):
     """
-    Process one day of data with configurable modes
+    Process one day of data with configurable modes.
+
+    LWA read_data calibrates/rebins in Jy, then divides every Stokes spectrum
+    by 1e4 exactly once (1 SFU = 10,000 Jy), in every calibration path.
+    Dspec.tofits writes self.data without converting it: specify SFU metadata,
+    and request SFU plots, without applying another numeric conversion here.
     
     Parameters:
     -----------
@@ -294,6 +299,8 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                 xhand_delay=_xhand,
             )
 
+            # d.read(source='lwa') already returns SFU; tofits' default is Jy.
+            # All three modes must label the stored values, never rescale them.
             # Handle different processing modes
             if mode == 'background':
                 background_file, background_found = find_background_file(files, year, month, day)
@@ -304,16 +311,16 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                 fits_dir = os.path.join(save_dir, 'fits_bcgrd', str(year))
                 os.makedirs(fits_dir, exist_ok=True)
                 d.tofits(os.path.join(fits_dir,
-                         'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)))
+                         'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)), spec_unit='sfu')
             else:  # original or open mode
                 d.read(process_files, **_read_kwargs)
                 if mode == 'original':
-                    d.tofits(os.path.join(save_dir, 'fits', '{}{}{}.fits'.format(year, month, day)))
+                    d.tofits(os.path.join(save_dir, 'fits', '{}{}{}.fits'.format(year, month, day)), spec_unit='sfu')
                 else:  # open mode
                     fits_dir = os.path.join(save_dir, 'fits', str(year))
                     os.makedirs(fits_dir, exist_ok=True)
                     d.tofits(os.path.join(fits_dir,
-                             'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)))
+                             'ovro-lwa.lev1_bmf_256ms_96kHz.{}-{}-{}.dspec_I.fits'.format(year, month, day)), spec_unit='sfu')
 
                 if mode == 'original':
                     time_range_all = [d.time_axis[0], d.time_axis[-1]]
@@ -327,7 +334,7 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                               add_logo=add_logo, combine=True, clip=[10, 99.5])
                 else:
                     fig = d.plot(pol='I', minmaxpercentile=True, vmax2=0.5, vmin2=-0.5,
-                                 freq_unit="MHz", plot_fast=True)
+                                 freq_unit="MHz", spec_unit='sfu', plot_fast=True)
                     try:
                         ax = fig.get_axes()[0]
                         locator = AutoDateLocator(minticks=2)
@@ -368,7 +375,7 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                     try:
                         thishour = [t_start.datetime.strftime('%Y-%m-%dT%H:%M:%S'),
                                     t_end.datetime.strftime('%Y-%m-%dT%H:%M:%S')]
-                        fig = d.plot(pol='IP', timerange=thishour, freq_unit="MHz",
+                        fig = d.plot(pol='IP', timerange=thishour, freq_unit="MHz", spec_unit='sfu',
                                      plot_fast=True, minmaxpercentile=True,
                                      vmax2=0.5, vmin2=-0.5)
                         fig.suptitle(thishour[0], y=1.02)

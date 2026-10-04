@@ -121,6 +121,13 @@ The web interface provides:
 
 ## Data Processing Details
 
+### Spectrum units
+
+Generated PRIMARY spectra are in SFU (1 SFU = 10,000 Jy). Historical daily
+FITS files may incorrectly say `BUNIT='jy'` while already storing SFU values.
+See [units and guarded historical migration](docs/units.md) for the source
+chain, preview/apply/verify/rollback commands, and limits. Do not rescale data.
+
 ### Calibration Strategy
 
 The system uses different calibration strategies based on observation dates:

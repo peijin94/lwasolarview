@@ -103,7 +103,8 @@ def plot_spectrum(fits_path, outdir='./tmp_plt',
     ax_I.set_ylabel('Frequency (MHz)', fontsize=11)
     ax_I.set_title('Stokes I', fontsize=11, loc='left')
     cb_I = fig.colorbar(im_I, ax=ax_I, pad=0.01, fraction=0.03)
-    cb_I.set_label('Flux density (Jy)', fontsize=9)
+    # These LWA primary spectra are already SFU, including legacy BUNIT='jy'.
+    cb_I.set_label('Flux density (SFU)', fontsize=9)
 
     # lower: V/I
     ax_VI = axes[1]
@@ -156,7 +157,7 @@ if __name__ == '__main__':
     parser.add_argument('--outdir', type=str, default='./tmp_plt',
                         help='Output directory for the PNG (default: ./tmp_plt)')
     parser.add_argument('--vmax', type=float, default=None,
-                        help='Fixed colour-scale maximum for Stokes I (Jy); '
+                        help='Fixed colour-scale maximum for Stokes I (SFU); '
                              'if omitted, uses --pct percentile')
     parser.add_argument('--pct', type=float, default=99,
                         help='Upper percentile for Stokes-I auto colour scale '
