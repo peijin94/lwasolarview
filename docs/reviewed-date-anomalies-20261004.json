@@ -1,0 +1,48 @@
+{
+  "schema": "spec-v2-reviewed-date-anomalies-v1",
+  "directory": "/nas8/lwa/spec_v2/fits",
+  "files": [
+    {
+      "filename": "20231108.fits",
+      "header_outside_bunit_sha256": "bcd1c4140a80bf12051d84a7c63c10a9a702c79c633e091f6673dc12fafcd68f",
+      "reason": "Reviewed pre-existing corrupt final timestamp/time reversal; primary unit metadata only, timestamps and samples unchanged.",
+      "date_obs": "2023-11-08T15:25:00.137",
+      "date_end": "2010-05-23T11:48:44.914"
+    },
+    {
+      "filename": "20231219.fits",
+      "header_outside_bunit_sha256": "e314837df2b2d74cad87f3e5190560a7dc9c5f39ee836ad173339331c4660fcf",
+      "reason": "Reviewed pre-existing corrupt final timestamp/time reversal; primary unit metadata only, timestamps and samples unchanged.",
+      "date_obs": "2023-12-19T16:10:00.134",
+      "date_end": "2010-06-23T05:37:29.914"
+    },
+    {
+      "filename": "20231220.fits",
+      "header_outside_bunit_sha256": "1acc8ae2dd0c014683535f6c6c4d65deaa2d7683b345d8d399db8b29b5bac46c",
+      "reason": "Reviewed pre-existing corrupt final timestamp/time reversal; primary unit metadata only, timestamps and samples unchanged.",
+      "date_obs": "2023-12-20T16:10:00.121",
+      "date_end": "2010-06-23T23:37:29.905"
+    },
+    {
+      "filename": "20231229.fits",
+      "header_outside_bunit_sha256": "f1f01d7ce16d8de49e7f39365c83ff837237587ab5ecbb999699133c7d524a61",
+      "reason": "Reviewed pre-existing corrupt final timestamp/time reversal; primary unit metadata only, timestamps and samples unchanged.",
+      "date_obs": "2023-12-29T16:15:00.137",
+      "date_end": "2010-06-30T17:41:14.916"
+    },
+    {
+      "filename": "20231230.fits",
+      "header_outside_bunit_sha256": "fd63b4ec6bb53e9ad3c53dbffcc698e3f386a19e0548b24d69b333b2e4970483",
+      "reason": "Reviewed pre-existing corrupt final timestamp/time reversal; primary unit metadata only, timestamps and samples unchanged.",
+      "date_obs": "2023-12-30T16:15:00.124",
+      "date_end": "2010-07-01T11:41:14.907"
+    },
+    {
+      "filename": "20260219.fits",
+      "header_outside_bunit_sha256": "e2dcba073a405351e1cc0aee5983afce585ba4bb80fca140a30709de8f4ddf88",
+      "reason": "Reviewed pre-existing corrupt final timestamp/time reversal; primary unit metadata only, timestamps and samples unchanged.",
+      "date_obs": "2026-02-19T17:37:00.124",
+      "date_end": "2012-02-08T00:26:14.917"
+    }
+  ]
+}

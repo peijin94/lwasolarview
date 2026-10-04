@@ -25,7 +25,11 @@ CARD = 80
 MAX_HEADER = 16 * 1024 * 1024
 NAME = re.compile(r'[0-9]{8}\.fits\Z')
 KEYWORD = re.compile(r'[A-Z0-9_-]{1,8}\Z')
-SCHEMA = 'spec-v2-bunit-card-v1'
+OLD_SCHEMA = 'spec-v2-bunit-card-v1'
+SCHEMA = 'spec-v2-bunit-span-v2'
+BLANK = b' ' * CARD
+END = b'END'.ljust(CARD, b' ')
+SFU_CARD = b"BUNIT   = 'sfu     ' / Data units".ljust(CARD, b' ')
 
 
 class Rejected(ValueError):
@@ -99,6 +103,7 @@ def read_header(fd):
                     raise Rejected('malformed END card')
                 if block[index + CARD:] != b' ' * (BLOCK - index - CARD):
                     raise Rejected('nonblank primary-header padding after END')
+                offsets['END'] = start + index
                 return b''.join(blocks), values, offsets
             if not key:
                 if raw != b' ' * CARD:
@@ -126,23 +131,41 @@ def valid_name(name):
         raise Rejected('invalid calendar date in filename') from exc
 
 
-def inspect(fd, name, size):
+def inspect(fd, name, size, allow_missing_bunit=False, legacy_header=False, date_anomaly_hash=None):
     valid_name(name)
     header, values, offsets = read_header(fd)
     for key in ('PBCOR', 'TDBCOR', 'CHECKSUM'):
         if key in values:
             raise Rejected(f'{key} present; corrected/checksummed products require separate handling')
-    if 'BUNIT' not in values:
+    missing = 'BUNIT' not in values
+    if missing and not (allow_missing_bunit or legacy_header):
         raise Rejected('absent primary BUNIT')
-    unit = values['BUNIT']
-    if not isinstance(unit, str) or unit.lower() not in ('jy', 'sfu'):
+    unit = values.get('BUNIT')
+    if not missing and (not isinstance(unit, str) or unit.lower() not in ('jy', 'sfu')):
         raise Rejected(f'incompatible primary BUNIT: {unit!r}')
+    reviewed_date_anomaly = date_anomaly_hash is not None
+    if reviewed_date_anomaly:
+        if missing or outside_hash(header, offsets['BUNIT']) != date_anomaly_hash:
+            raise Rejected('reviewed date-anomaly header digest mismatch')
     required = {'SIMPLE': True, 'NAXIS': 4, 'NAXIS3': 1, 'EXTEND': True,
-                'FILENAME': name, 'ORIGIN': 'NJIT', 'OBJ_ID': 'SUN', 'TYPE': 1,
-                'POLARIZA': 'I', 'BTYPE': 'flx', 'BNAME': 'Flux Density'}
+                'ORIGIN': 'NJIT', 'OBJ_ID': 'SUN', 'TYPE': 1, 'POLARIZA': 'I'}
+    # Only an explicitly approved absent-unit product (or its journal-proven
+    # inserted/restored form) may omit these legacy writer cards.
+    # The exact inserted card is recognizable for an explicitly approved rerun;
+    # arbitrary existing-unit legacy cards still require journal provenance.
+    inserted_sfu = (unit == 'sfu' and not missing
+                    and header[offsets['BUNIT']:offsets['BUNIT'] + CARD] == SFU_CARD)
+    legacy = missing or (legacy_header and unit == 'sfu') or (allow_missing_bunit and inserted_sfu)
+    for key, expected in {'BTYPE': 'flx', 'BNAME': 'Flux Density'}.items():
+        if not legacy or key in values:
+            required[key] = expected
     for key, expected in required.items():
         if values.get(key) != expected or type(values.get(key)) is not type(expected):
             raise Rejected(f'foreign/unsupported product: {key} must be {expected!r}')
+    filename = values.get('FILENAME')
+    if (not isinstance(filename, str) or Path(filename).name != name
+            or (filename != name and not Path(filename).is_absolute())):
+        raise Rejected('foreign/unsupported product: FILENAME basename must match daily filename')
     # Dspec.tofits historically uses its EOVSA default even for LWA input.
     # Telescope alone cannot establish provenance; restrict shape, frequencies,
     # dates and the other writer-specific primary cards as well.
@@ -164,15 +187,21 @@ def inspect(fd, name, size):
         elements *= n
     if values['NAXIS4'] not in (1, 2):
         raise Rejected('unsupported historical Stokes axis')
+    recording_day = datetime.datetime.strptime(name[:8], '%Y%m%d').date()
+    dates = []
     for key in ('DATE_OBS', 'DATE_END'):
         try:
             date = datetime.datetime.fromisoformat(values[key])
+            if 'T' not in values[key] or (date.utcoffset() not in (None, datetime.timedelta(0))):
+                raise ValueError('expected UTC observation timestamp')
+            date = date.replace(tzinfo=None)
         except (KeyError, TypeError, ValueError) as exc:
             raise Rejected(f'malformed/missing {key}') from exc
-        if date.strftime('%Y%m%d') != name[:8]:
-            raise Rejected(f'{key} does not match daily filename')
-    if values['DATE_END'] < values['DATE_OBS']:
-        raise Rejected('observation end precedes start')
+        if not reviewed_date_anomaly and date.date() not in (recording_day, recording_day + datetime.timedelta(days=1)):
+            raise Rejected(f'{key} outside recording day and next UT day')
+        dates.append(date)
+    if not reviewed_date_anomaly and not datetime.timedelta(0) <= dates[1] - dates[0] <= datetime.timedelta(hours=36):
+        raise Rejected('observation times must be ordered and span at most 36 hours')
     fmin, fmax = values.get('FREQMIN'), values.get('FREQMAX')
     if (type(fmin) not in (int, float) or type(fmax) not in (int, float)
             or not 0.010 <= fmin <= fmax <= 0.100):
@@ -181,7 +210,18 @@ def inspect(fd, name, size):
     padded = ((data_size + BLOCK - 1) // BLOCK) * BLOCK
     if size % BLOCK or size < len(header) + padded:
         raise Rejected('truncated/misaligned FITS file or primary payload')
-    return header, offsets['BUNIT'], unit
+    return header, offsets.get('BUNIT'), unit
+
+
+def insertion_span(header):
+    """Consume only an existing blank card, or END plus its following blank."""
+    end = next(i for i in range(0, len(header), CARD) if header[i:i + CARD] == END)
+    blanks = [i for i in range(0, end, CARD) if header[i:i + CARD] == BLANK]
+    if blanks:
+        return blanks[-1], SFU_CARD
+    if header[end + CARD:end + 2 * CARD] == BLANK:
+        return end, SFU_CARD + END
+    raise Rejected('no safe primary-header padding for BUNIT insertion without header growth')
 
 
 def corrected_card(raw, unit):
@@ -210,8 +250,8 @@ def corrected_card(raw, unit):
     return result
 
 
-def outside_hash(header, offset):
-    return digest(header[:offset] + header[offset + CARD:])
+def outside_hash(header, offset, span_length=CARD):
+    return digest(header[:offset] + header[offset + span_length:])
 
 
 def sample_regions(header_size, file_size):
@@ -316,18 +356,19 @@ class Journal:
         os.close(self.fd)
 
 
-def backup_record(path, dir_fd, st, header, offset, replacement, payload_samples):
+def backup_record(path, dir_fd, st, header, offset, replacement, payload_samples, legacy_header=False, date_anomaly_hash=None):
     dst = os.fstat(dir_fd)
     return dict(schema=SCHEMA, event='prepare', id=uuid.uuid4().hex,
                 path=str(path), directory_device=dst.st_dev, directory_inode=dst.st_ino,
                 device=st.st_dev, inode=st.st_ino, size=st.st_size,
                 mtime_ns=st.st_mtime_ns, ctime_ns=st.st_ctime_ns,
-                header_size=len(header), card_offset=offset,
-                original_card_hex=header[offset:offset + CARD].hex(),
+                header_size=len(header), card_offset=offset, span_length=len(replacement),
+                legacy_header=legacy_header, date_anomaly_header_sha256=date_anomaly_hash,
+                original_card_hex=header[offset:offset + len(replacement)].hex(),
                 replacement_card_hex=replacement.hex(),
-                header_outside_card_sha256=outside_hash(header, offset),
+                header_outside_span_sha256=outside_hash(header, offset, len(replacement)),
                 samples=payload_samples,
-                verification='full primary header outside BUNIT; deterministic payload samples only',
+                verification='full primary header outside edited span; deterministic payload samples only',
                 utc=datetime.datetime.now(datetime.timezone.utc).isoformat())
 
 
@@ -341,13 +382,15 @@ def check_record(fd, dir_fd, name, st, record, expected_card):
             record['device'], record['inode'], record['size'],
             record['directory_device'], record['directory_inode']):
         raise SafetyError('journal file/directory identity or file size mismatch')
-    header, offset, _ = inspect(fd, name, st.st_size)
-    if len(header) != record['header_size'] or offset != record['card_offset']:
+    header, _, _ = inspect(fd, name, st.st_size, legacy_header=record['legacy_header'],
+                           date_anomaly_hash=record.get('date_anomaly_header_sha256'))
+    offset, length = record['card_offset'], record['span_length']
+    if len(header) != record['header_size']:
         raise SafetyError('journal header layout mismatch')
-    if header[offset:offset + CARD] != expected_card:
-        raise SafetyError('journal target BUNIT card mismatch')
-    if outside_hash(header, offset) != record['header_outside_card_sha256']:
-        raise SafetyError('primary header outside BUNIT changed')
+    if header[offset:offset + length] != expected_card:
+        raise SafetyError('journal target header span mismatch')
+    if outside_hash(header, offset, length) != record['header_outside_span_sha256']:
+        raise SafetyError('primary header outside edited span changed')
     if samples(fd, len(header), st.st_size) != record['samples']:
         raise SafetyError('deterministic payload sample mismatch (not a full checksum)')
     check_identity(fd, dir_fd, name, st)
@@ -360,15 +403,30 @@ def write_card(fd, dir_fd, name, st, record, journal):
     journal.append(record)  # Exact backup is durable BEFORE touching the FITS.
     before_header = check_record(fd, dir_fd, name, st, record, original)
     written = os.pwrite(fd, replacement, record['card_offset'])
-    if written != CARD:
+    if written != record['span_length']:
         raise SafetyError('short BUNIT write; retain journal for recovery')
     os.fsync(fd)
     after = os.fstat(fd)
     after_header = check_record(fd, dir_fd, name, after, record, replacement)
     offset = record['card_offset']
-    if after_header != before_header[:offset] + replacement + before_header[offset + CARD:]:
-        raise SafetyError('primary header bytes outside target card changed')
+    if after_header != before_header[:offset] + replacement + before_header[offset + record['span_length']:]:
+        raise SafetyError('primary header bytes outside target span changed')
     journal.append(dict(schema=SCHEMA, event='complete', id=record['id']))
+
+
+def validate_spans(old, new, length, legacy):
+    if len(old) != length or len(new) != length or old == new:
+        raise ValueError('invalid journal span length/transition')
+    if legacy:
+        pairs = [(BLANK, SFU_CARD), (END + BLANK, SFU_CARD + END)]
+        if (old, new) not in pairs and (new, old) not in pairs:
+            raise ValueError('invalid legacy insertion/restoration span')
+    else:
+        for c in (old, new):
+            if length != CARD or c[:8] != b'BUNIT   ' or value_of(c).lower() not in ('jy', 'sfu'):
+                raise ValueError('invalid journal BUNIT card')
+        if value_of(old) != 'sfu' and value_of(new) != 'sfu':
+            raise ValueError('invalid journal unit transition')
 
 
 def load_journal(path):
@@ -386,7 +444,7 @@ def load_journal(path):
     try:
         for line in raw.splitlines():
             r = json.loads(line)
-            if r['schema'] != SCHEMA or not isinstance(r['id'], str):
+            if r['schema'] not in (SCHEMA, OLD_SCHEMA) or not isinstance(r['id'], str):
                 raise ValueError('unknown journal schema/id')
             if r['event'] == 'complete':
                 if r['id'] not in seen or r['id'] in completed:
@@ -395,6 +453,10 @@ def load_journal(path):
                 continue
             if r['event'] != 'prepare' or r['id'] in seen:
                 raise ValueError('invalid prepare record')
+            if r['schema'] == OLD_SCHEMA:
+                r['span_length'] = CARD
+                r['legacy_header'] = False
+                r['header_outside_span_sha256'] = r['header_outside_card_sha256']
             p = Path(r['path'])
             if not p.is_absolute() or str(p) != r['path'] or '..' in p.parts:
                 raise ValueError('noncanonical journal data path')
@@ -402,20 +464,21 @@ def load_journal(path):
             if r['path'] in paths:
                 raise ValueError('duplicate journal data path')
             for key in ('device', 'inode', 'size', 'directory_device', 'directory_inode',
-                        'header_size', 'card_offset', 'mtime_ns', 'ctime_ns'):
+                        'header_size', 'card_offset', 'span_length', 'mtime_ns', 'ctime_ns'):
                 if type(r[key]) is not int or r[key] < 0:
                     raise ValueError(f'invalid journal {key}')
             hsize, offset, size = r['header_size'], r['card_offset'], r['size']
+            length = r['span_length']
             if (not 0 < hsize <= MAX_HEADER or hsize % BLOCK or size <= hsize
-                    or size % BLOCK or offset % CARD or offset + CARD > hsize):
+                    or size % BLOCK or offset % CARD or length not in (CARD, 2 * CARD)
+                    or offset + length > hsize or type(r['legacy_header']) is not bool):
                 raise ValueError('invalid journal offsets/sizes')
             old, new = bytes.fromhex(r['original_card_hex']), bytes.fromhex(r['replacement_card_hex'])
-            for c in (old, new):
-                if len(c) != CARD or c[:8] != b'BUNIT   ' or value_of(c).lower() not in ('jy', 'sfu'):
-                    raise ValueError('invalid journal BUNIT card')
-            if old == new or (value_of(old) != 'sfu' and value_of(new) != 'sfu'):
-                raise ValueError('invalid journal transition')
-            if not re.fullmatch('[0-9a-f]{64}', r['header_outside_card_sha256']):
+            validate_spans(old, new, length, r['legacy_header'])
+            if (r.get('date_anomaly_header_sha256') is not None
+                    and not re.fullmatch('[0-9a-f]{64}', r['date_anomaly_header_sha256'])):
+                raise ValueError('invalid reviewed date-anomaly digest')
+            if not re.fullmatch('[0-9a-f]{64}', r['header_outside_span_sha256']):
                 raise ValueError('invalid journal header digest')
             expected_regions = sample_regions(hsize, size)
             if [(s['offset'], s['length']) for s in r['samples']] != expected_regions:
@@ -432,6 +495,32 @@ def load_journal(path):
     return records, completed
 
 
+def reviewed_date_anomalies(path, data_dir):
+    """Explicitly reviewed exact headers only; never an automatic date bypass."""
+    if path is None:
+        return {}
+    manifest = json.loads(Path(path).read_text())
+    if not isinstance(manifest, dict):
+        raise SafetyError('reviewed date-anomaly manifest must be an object')
+    if (manifest.get('schema') != 'spec-v2-reviewed-date-anomalies-v1'
+            or manifest.get('directory') != str(data_dir)
+            or not isinstance(manifest.get('files'), list)):
+        raise SafetyError('reviewed date-anomaly manifest schema/directory mismatch')
+    approved = {}
+    for record in manifest['files']:
+        if not isinstance(record, dict) or not isinstance(record.get('filename'), str):
+            raise SafetyError('reviewed date-anomaly record requires a filename')
+        name = record['filename']
+        valid_name(name)
+        sha = record.get('header_outside_bunit_sha256')
+        if (name in approved or not isinstance(sha, str)
+                or not re.fullmatch('[0-9a-f]{64}', sha)
+                or not isinstance(record.get('reason'), str) or not record['reason'].strip()):
+            raise SafetyError('invalid or duplicate reviewed date-anomaly record')
+        approved[name] = sha
+    return approved
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', nargs='?', help='explicit historical spec_v2 FITS directory')
@@ -440,11 +529,19 @@ def main(argv=None):
     mode.add_argument('--rollback', metavar='JOURNAL', help='preview restoring exact original cards')
     parser.add_argument('--apply', action='store_true', help='perform migration or rollback (default: preview)')
     parser.add_argument('--journal', help='NEW durable JSONL outside data directories; required with --apply')
+    parser.add_argument('--allow-missing-bunit', action='store_true',
+                        help='explicitly approve legacy absent-unit headers; insert SFU using existing padding only')
+    parser.add_argument('--reviewed-date-anomalies', metavar='MANIFEST',
+                        help='explicit hash-bound exceptions for reviewed corrupt timestamps; no date changes')
     args = parser.parse_args(argv)
-    if args.verify and (args.directory or args.apply or args.journal):
+    if args.reviewed_date_anomalies and (args.verify or args.rollback):
+        parser.error('verify/rollback use only anomaly approval recorded in their journal')
+    if args.verify and (args.directory or args.apply or args.journal or args.allow_missing_bunit):
         parser.error('--verify accepts only a journal, with no mutation options/directory')
     if args.rollback and args.directory:
         parser.error('--rollback uses only paths recorded in its journal')
+    if args.rollback and args.allow_missing_bunit:
+        parser.error('--rollback uses the legacy format approval recorded in its journal')
     if not (args.verify or args.rollback or args.directory):
         parser.error('supply an explicit data directory, --verify, or --rollback')
     if args.apply and not args.journal:
@@ -477,10 +574,12 @@ def main(argv=None):
                                 print(f'VERIFIED {path}: header + {len(record["samples"])} payload samples{pending}')
                             else:
                                 counts['would_change'] += 1
-                                print(f'RESTORE {path}: exact original 80-byte BUNIT card{pending}')
+                                print(f'RESTORE {path}: exact original {record["span_length"]}-byte header span{pending}')
                                 if args.apply:
                                     restored = backup_record(path, dir_fd, st, header, record['card_offset'],
-                                                             bytes.fromhex(record['original_card_hex']), record['samples'])
+                                                             bytes.fromhex(record['original_card_hex']), record['samples'],
+                                                             legacy_header=record['legacy_header'],
+                                                             date_anomaly_hash=record.get('date_anomaly_header_sha256'))
                                     write_card(fd, dir_fd, path.name, st, restored, journal)
                                     counts['changed'] += 1
                                     counts['verified'] += 1
@@ -496,9 +595,12 @@ def main(argv=None):
                         break
         else:
             data_dir = directory(args.directory)
+            approved_hashes = reviewed_date_anomalies(args.reviewed_date_anomalies, data_dir)
             with open_directory(data_dir) as dir_fd:
                 names = sorted(os.listdir(dir_fd))
                 candidates = [name for name in names if NAME.fullmatch(name)]
+                if set(approved_hashes) - set(candidates):
+                    raise SafetyError('reviewed anomaly manifest contains files outside selected candidates')
                 counts['candidates'] = len(candidates)
                 counts['ignored'] = len(names) - len(candidates)
                 if args.apply:
@@ -507,19 +609,25 @@ def main(argv=None):
                     path = data_dir / name
                     try:
                         with locked_file(dir_fd, name, args.apply) as (fd, st):
-                            header, offset, unit = inspect(fd, name, st.st_size)
-                            replacement = corrected_card(header[offset:offset + CARD], unit)
+                            header, offset, unit = inspect(fd, name, st.st_size, args.allow_missing_bunit,
+                                                          date_anomaly_hash=approved_hashes.get(name))
+                            if unit is None:
+                                offset, replacement = insertion_span(header)
+                            else:
+                                replacement = corrected_card(header[offset:offset + CARD], unit)
                             payload_samples = samples(fd, len(header), st.st_size)
                             check_identity(fd, dir_fd, name, st)
-                            if replacement == header[offset:offset + CARD]:
+                            if replacement == header[offset:offset + len(replacement)]:
                                 counts['unchanged'] += 1
                                 print(f'UNCHANGED {path}: BUNIT is exactly sfu')
                             else:
                                 counts['would_change'] += 1
                                 print(f'{"CHANGE" if args.apply else "WOULD CHANGE"} {path}: {unit!r} -> sfu; '
-                                      f'80-byte card only; {len(payload_samples)} payload samples')
+                                      f'{len(replacement)}-byte header span only; {len(payload_samples)} payload samples')
                                 if args.apply:
-                                    record = backup_record(path, dir_fd, st, header, offset, replacement, payload_samples)
+                                    record = backup_record(path, dir_fd, st, header, offset, replacement, payload_samples,
+                                                           legacy_header=unit is None,
+                                                           date_anomaly_hash=approved_hashes.get(name))
                                     write_card(fd, dir_fd, name, st, record, journal)
                                     counts['changed'] += 1
                                     counts['verified'] += 1
