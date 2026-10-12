@@ -43,8 +43,10 @@ def divide_time_in_hours(time_start, time_end, hour_length=1 / 24):
     total_hours = total_duration / hour_length
     full_hours = int(total_hours)
 
-    # Check if the last hour is less than 0.5 hours
-    if total_hours % 1 < 0.5 and full_hours > 0:
+    # Trailing partial hour: keep it as its own section if it is >= 10 min;
+    # if shorter, merge it into the previous section so no data is dropped
+    # from the hourly panels (2026-10-11, issue #5).
+    if 0 < total_hours % 1 < 10 / 60 and full_hours > 0:
         full_hours -= 1
 
     # Generate time sections
@@ -52,7 +54,7 @@ def divide_time_in_hours(time_start, time_end, hour_length=1 / 24):
                       (i + 1) * hour_length) for i in range(full_hours)]
 
     # Add the remaining time to the last section if there's a remainder
-    if total_hours % 1 >= 0.5 or full_hours == 0:
+    if total_hours % 1 > 0 or full_hours == 0:
         time_sections.append((time_start + full_hours * hour_length, time_end))
 
     return time_sections
@@ -378,6 +380,21 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
                         fig = d.plot(pol='IP', timerange=thishour, freq_unit="MHz", spec_unit='sfu',
                                      plot_fast=True, minmaxpercentile=True,
                                      vmax2=0.5, vmin2=-0.5)
+                        # 2026-10-11 (issue #5): anchor every hourly panel to a 1-hour
+                        # x-range starting at the section start; a missing/partial tail
+                        # (partial last hour, recording gaps) renders blank so that
+                        # morphology is consistent across panels. Best-effort only:
+                        # never fail the plot because of this.
+                        try:
+                            t0num = t_start.plot_date
+                            t1num = max(t0num + 1.0 / 24, t_end.plot_date)
+                            for _ax in fig.get_axes():
+                                # time axes carry plot_date values (~2e4 days since 1970);
+                                # colorbar axes span 0..1
+                                if _ax.get_xlim()[0] > 1e3:
+                                    _ax.set_xlim(t0num, t1num)
+                        except Exception:
+                            traceback.print_exc()
                         fig.suptitle(thishour[0], y=1.02)
                         fig.savefig(os.path.join(hourly_dir, '{}_{}.png'.format(day, i)),
                                     bbox_inches='tight')
