@@ -26,6 +26,9 @@ matplotlib.use('Agg')
 plt.ioff()
 
 
+_REPO_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 def extract_date_from_path(path):
     # Regular expression to match the date pattern in directory names
     match = re.search(r'(\d{4})(\d{2})(\d{2})', path)
@@ -165,7 +168,7 @@ def traverse_and_print_dates(directory, startingday='20230828', **kwargs):
                         gc.collect()
 
 
-def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/caltables/'],
+def one_day_proc(full_path, freq_bin=4, cal_dirs=None,
                  add_logo=True, t1='2024-03-08', t2='2024-03-23', use_synoptic_spec=False,
                  mode='original', save_dir=None, stokes='IV', timebin=8,
                  use_xhand_book=False, xhand_delay_book='./xhand_book.csv',
@@ -196,13 +199,17 @@ def one_day_proc(full_path, freq_bin=4, cal_dirs=['/data1/pzhang/lwasolarview/ca
     """
     
     # Set default save directories based on mode
+    # NOTE (/sbdata retired 2026-09-28): open/background have no default
+    if cal_dirs is None:
+        cal_dirs = [os.path.join(_REPO_DIR, "caltables") + os.sep]
+    # output dir and require --save_dir.
     if save_dir is None:
         if mode == 'original':
             save_dir = '/common/lwa/spec_v2/'
-        elif mode == 'open':
-            save_dir = '/sbdata/lwa-spec-tmp/spec_lv1/'
-        elif mode == 'background':
-            save_dir = '/sbdata/lwa-spec-tmp/spec_lv15/'
+        elif mode in ('open', 'background'):
+            raise ValueError(
+                "mode {!r} requires --save_dir (no default; /sbdata is retired)".format(mode)
+            )
     
     year, month, day = extract_date_from_path(full_path)
 
@@ -474,10 +481,10 @@ if __name__ == "__main__":
     parser.add_argument('--use_xhand_book', action='store_true', help='Use Xhand delay book')
     parser.add_argument('--use-remote-file', dest='use_remote_file', action='store_true',
                         help='Read HDF files directly from source path; if False (default), copy to tmp dir first')
-    parser.add_argument('--tmp-hdf-dir', dest='tmp_hdf_dir', type=str, default='/data1/pzhang/tmp_hdf_666/',
-                        help='Temp folder for local HDF copies when not using remote files (default: /data1/pzhang/tmp_hdf_666/)')
+    parser.add_argument('--tmp-hdf-dir', dest='tmp_hdf_dir', type=str, default=os.path.join(os.path.expanduser("~"), "tmp_spec_daily"),
+                        help='Temp folder for local HDF copies when not using remote files (default: ~/tmp_spec_daily/)')
 
-    pre_defined_cal_dir = ['/data1/pzhang/lwasolarview/caltables/']
+    pre_defined_cal_dir = [os.path.join(_REPO_DIR, "caltables") + os.sep]
 
     args = parser.parse_args()
     directory_path = args.datahome

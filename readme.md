@@ -103,7 +103,7 @@ For regular automated processing, use the provided shell scripts:
 These scripts:
 - Activate the conda environment
 - Process the last two days of data
-- Create a touch file for monitoring (`/data1/pzhang/update_lwaspectra`)
+- Create a touch file for monitoring (`/data1/users/pz47/update_lwaspectra`)
 
 ### Web Interface
 
@@ -144,10 +144,10 @@ The system uses different calibration strategies based on observation dates:
 - **Hourly plots**: `/common/lwa/spec_v2/hourly/YYYYMM/DD_N.png`
 
 #### Open Mode Outputs:
-- **FITS files**: `/sbdata/lwa-spec-tmp/spec_lv1/fits/YYYY/ovro-lwa.lev1_bmf_256ms_96kHz.YYYY-MM-DD.dspec_I.fits`
+- **FITS files**: `<save_dir>/fits/YYYY/ovro-lwa.lev1_bmf_256ms_96kHz.YYYY-MM-DD.dspec_I.fits` (`--save_dir` required; `/sbdata` retired 2026-09-28)
 
 #### Background Mode Outputs:
-- **Background FITS files**: `/sbdata/lwa-spec-tmp/spec_lv15/fits_bcgrd/YYYY/ovro-lwa.lev1_bmf_256ms_96kHz.YYYY-MM-DD.dspec_I.fits`
+- **Background FITS files**: `<save_dir>/fits_bcgrd/YYYY/ovro-lwa.lev1_bmf_256ms_96kHz.YYYY-MM-DD.dspec_I.fits` (`--save_dir` required; `/sbdata` retired 2026-09-28)
 
 ### Background File Detection
 
