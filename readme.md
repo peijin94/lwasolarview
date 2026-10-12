@@ -160,7 +160,7 @@ In background mode, the system automatically detects background files by:
 
 ### Calibration Directories
 
-Default calibration directory: `/data1/pzhang/lwasolarview/caltables/`
+Default calibration directory: `/data1/users/pz47/lwasolarview/caltables/` (default; resolved from script location)
 
 Additional calibration directories can be specified using the `--dir_cal` option.
 
@@ -170,7 +170,7 @@ Default data home directory: `/nas7a/beam/beam-data/`
 
 ## Monitoring
 
-The system creates a touch file at `/data1/pzhang/update_lwaspectra` when processing completes, which can be used for monitoring and automation.
+The system creates a touch file at `/data1/users/pz47/update_lwaspectra` when processing completes, which can be used for monitoring and automation.
 
 ## Dependencies
 
